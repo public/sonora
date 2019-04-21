@@ -1,0 +1,125 @@
+from collections import namedtuple
+from importlib import import_module
+
+import grpc
+
+from grpcWSGI import protocol
+
+
+_HandlerCallDetails = namedtuple("_HandlerCallDetails", ("method", "invocation_metadata"))
+
+
+class grpcWSGI:
+    """
+    WSGI Application Object that understands gRPC-Web.
+
+    This is called by the WSGI server that's handling our actual HTTP
+    connections. That means we can't use the normal gRPC I/O loop etc.
+    """
+
+    def __init__(self, application):
+        self._application = application
+        self._handlers = []
+
+    def add_generic_rpc_handlers(self, handlers):
+        self._handlers.extend(handlers)
+
+    def _get_rpc_handler(self, environ):
+        path = environ["PATH_INFO"]
+
+        handler_call_details = _HandlerCallDetails(path, None)
+
+        rpc_handler = None
+        for handler in self._handlers:
+            rpc_handler = handler.service(handler_call_details)
+            if rpc_handler:
+                return rpc_handler
+
+        return None
+
+    def _do_grpc_request(self, rpc_method, environ, start_response):
+        try:
+            content_length = int(environ.get('CONTENT_LENGTH', 0))
+        except ValueError:
+            content_length = 0
+
+        request_data = environ["wsgi.input"].read(content_length)
+
+        context = gRPCContext()
+
+        _compressed, message = protocol.unrwap_message(request_data)
+        request_proto = rpc_method.request_deserializer(message)
+
+        if not rpc_method.request_streaming and not rpc_method.response_streaming:
+            resp = [rpc_method.unary_unary(request_proto, context)]
+        elif not rpc_method.request_streaming and rpc_method.response_streaming:
+            resp = rpc_method.unary_stream(request_proto, context)
+        else:
+            raise NotImplementedError()
+
+        if context.code is None or context.code == grpc.StatusCode.OK:
+            content_type = "application/grpc-web+proto"
+        else:
+            message = [context.details]
+            content_type = "text/plain"
+
+        start_response(
+            _grpc_status_to_wsgi_status(context.code),
+            [("Content-Type", content_type)]
+        )
+
+        return [
+            protocol.wrap_message(False, rpc_method.response_serializer(message))
+            for message in resp
+        ]
+
+    def __call__(self, environ, start_response):
+        """
+        Our actual WSGI request handler. Will execute the request
+        if it matches a configured gRPC service path or fall through
+        to the next application.
+        """
+
+        rpc_method = self._get_rpc_handler(environ)
+
+        if rpc_method:
+            if environ["REQUEST_METHOD"] == "POST":
+                return self._do_grpc_request(rpc_method, environ, start_response)
+            else:
+                start_response("400 Bad Request", [])
+                return []
+
+        return self._application(environ, start_response)
+
+
+class gRPCContext:
+    def __init__(self):
+        self.code = None
+        self.details = None
+
+    def set_code(self, code):
+        self.code = code
+
+    def set_details(self, details):
+        self.details = details
+
+
+def _grpc_status_to_wsgi_status(code):
+    if code == grpc.StatusCode.OK:
+        return "200 OK"
+    elif code is None:
+        return "200 OK"
+    elif code == grpc.StatusCode.UNKNOWN:
+        return "500 Internal Server Error"
+    elif code == grpc.StatusCode.INTERNAL:
+        return "500 Internal Server Error"
+    elif code == grpc.StatusCode.UNAVAILABLE:
+        return "503 Service Unavailable"
+    elif code == grpc.StatusCode.INVALID_ARGUMENT:
+        return "400 Bad Request"
+    elif code == grpc.StatusCode.UNIMPLEMENTED:
+        return "404 Not Found"
+    elif code == grpc.StatusCode.PERMISSION_DENIED:
+        return "403 Forbidden"
+    else:
+        return "500 Internal Server Error"
