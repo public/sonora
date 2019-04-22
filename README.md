@@ -1,3 +1,5 @@
+[![CircleCI](https://circleci.com/gh/public/grpcWSGI.svg?style=svg)](https://circleci.com/gh/public/grpcWSGI)
+
 # gRPC-WSGI
 
 A gRPC-Web implementation based on Python's WSGI standard.
