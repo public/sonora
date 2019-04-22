@@ -71,20 +71,42 @@ class grpcWSGI(grpc.Server):
         else:
             raise NotImplementedError()
 
-        if context.code is None or context.code == grpc.StatusCode.OK:
+        if context.code == grpc.StatusCode.OK:
             content_type = "application/grpc-web+proto"
         else:
-            message = [context.details]
+            resp = []
             content_type = "text/plain"
 
         start_response(
-            _grpc_status_to_wsgi_status(context.code), [("Content-Type", content_type)]
+            _grpc_status_to_wsgi_status(context.code),
+            [
+                ("Content-Type", content_type),
+                ("Access-Control-Allow-Origin", "*"),
+                ("Access-Control-Expose-Headers", "*"),
+                ("grpc-status", str(context.code.value[0])),
+                ("grpc-message", str(context.details)),
+            ],
         )
 
         return [
             protocol.wrap_message(False, rpc_method.response_serializer(message))
             for message in resp
         ]
+
+    def _do_cors_preflight(self, environ, start_response):
+        start_response(
+            "204 No Content",
+            [
+                ("Content-Type", "text/plain"),
+                ("Content-Length", "0"),
+                ("Access-Control-Allow-Methods", "POST, OPTIONS"),
+                ("Access-Control-Allow-Headers", "*"),
+                ("Access-Control-Allow-Origin", "*"),
+                ("Access-Control-Allow-Credentials", "true"),
+                ("Access-Control-Expose-Headers", "*"),
+            ],
+        )
+        return []
 
     def __call__(self, environ, start_response):
         """
@@ -94,10 +116,13 @@ class grpcWSGI(grpc.Server):
         """
 
         rpc_method = self._get_rpc_handler(environ)
+        request_method = environ["REQUEST_METHOD"]
 
         if rpc_method:
-            if environ["REQUEST_METHOD"] == "POST":
+            if request_method == "POST":
                 return self._do_grpc_request(rpc_method, environ, start_response)
+            elif request_method == "OPTIONS":
+                return self._do_cors_preflight(environ, start_response)
             else:
                 start_response("400 Bad Request", [])
                 return []
@@ -107,7 +132,7 @@ class grpcWSGI(grpc.Server):
 
 class gRPCContext:
     def __init__(self):
-        self.code = None
+        self.code = grpc.StatusCode.OK
         self.details = None
 
     def set_code(self, code):
