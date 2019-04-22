@@ -27,7 +27,7 @@ EXTRAS = {
 }
 
 # What packages are needed to run the tests?
-TESTS_REQUIRED = ["pytest", "pytest-mockservers", "requests"]
+TESTS_REQUIRED = ["grpcio-tools", "pytest", "pytest-mockservers", "requests"]
 
 # The rest you shouldn't have to touch too much :)
 # ------------------------------------------------
