@@ -1,4 +1,11 @@
 version: 2
+workflows:
+  version: 2
+  test:
+    jobs:
+      - test-py36
+      - test-py37
+      - black-py37
 jobs:
   test-py36:
     docker:
