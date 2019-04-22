@@ -20,9 +20,9 @@ def test_unwrapping_stream():
     ]
     for message in messages:
         buffer.write(protocol.wrap_message(False, message))
-    
+
     buffer.seek(0)
-    
+
     resp_messages = []
     for _, resp in protocol.unwrap_message_stream(buffer):
         resp_messages.append(resp)

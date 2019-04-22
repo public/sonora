@@ -24,19 +24,17 @@ class WebChannel:
 
     def unary_unary(self, path, request_serializer, response_deserializer):
         return UnaryUnary(
-            self._session, self._url,
-            path, request_serializer, response_deserializer
+            self._session, self._url, path, request_serializer, response_deserializer
         )
 
     def unary_stream(self, path, request_serializer, response_deserializer):
         return UnaryStream(
-            self._session, self._url,
-            path, request_serializer, response_deserializer
+            self._session, self._url, path, request_serializer, response_deserializer
         )
-    
+
     def stream_unary(self, path, request_serializer, response_deserializer):
         raise NotImplementedError()
-    
+
     def stream_stream(self, path, request_serializer, response_deserializer):
         raise NotImplementedError()
 
@@ -54,10 +52,8 @@ class UnaryUnary:
 
     def __call__(self, request, timeout=None):
         url = urljoin(self._url, self._path)
-        
-        headers = {
-            "x-user-agent":"grpc-web-python/0.1",
-        }
+
+        headers = {"x-user-agent": "grpc-web-python/0.1"}
 
         resp = self._session.post(
             url,
@@ -86,17 +82,15 @@ class UnaryStream:
 
     def __call__(self, request, timeout=None):
         url = urljoin(self._url, self._path)
-        
-        headers = {
-            "x-user-agent":"grpc-web-python/0.1",
-        }
+
+        headers = {"x-user-agent": "grpc-web-python/0.1"}
 
         resp = self._session.post(
             url,
             data=protocol.wrap_message(False, self._serializer(request)),
             headers=headers,
             timeout=timeout,
-            stream=True
+            stream=True,
         )
 
         if resp.status_code != 200:

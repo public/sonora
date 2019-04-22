@@ -6,7 +6,9 @@ import grpc
 from grpcWSGI import protocol
 
 
-_HandlerCallDetails = namedtuple("_HandlerCallDetails", ("method", "invocation_metadata"))
+_HandlerCallDetails = namedtuple(
+    "_HandlerCallDetails", ("method", "invocation_metadata")
+)
 
 
 class grpcWSGI:
@@ -39,7 +41,7 @@ class grpcWSGI:
 
     def _do_grpc_request(self, rpc_method, environ, start_response):
         try:
-            content_length = int(environ.get('CONTENT_LENGTH', 0))
+            content_length = int(environ.get("CONTENT_LENGTH", 0))
         except ValueError:
             content_length = 0
 
@@ -64,8 +66,7 @@ class grpcWSGI:
             content_type = "text/plain"
 
         start_response(
-            _grpc_status_to_wsgi_status(context.code),
-            [("Content-Type", content_type)]
+            _grpc_status_to_wsgi_status(context.code), [("Content-Type", content_type)]
         )
 
         return [

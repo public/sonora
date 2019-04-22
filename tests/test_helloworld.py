@@ -16,7 +16,9 @@ FORMAT_STRING = "Hello, {request.name}!"
 def _server(lock, port):
     class Greeter(helloworld_pb2_grpc.GreeterServicer):
         def SayHello(self, request, context):
-            return helloworld_pb2.HelloReply(message=FORMAT_STRING.format(request=request))
+            return helloworld_pb2.HelloReply(
+                message=FORMAT_STRING.format(request=request)
+            )
 
         def SayHelloSlowly(self, request, context):
             message = FORMAT_STRING.format(request=request)
@@ -25,7 +27,7 @@ def _server(lock, port):
 
     grpc_wsgi_app = grpcWSGI.server.grpcWSGI(None)
 
-    with make_server('127.0.0.1', port, grpc_wsgi_app) as httpd:
+    with make_server("127.0.0.1", port, grpc_wsgi_app) as httpd:
         helloworld_pb2_grpc.add_GreeterServicer_to_server(Greeter(), grpc_wsgi_app)
         lock.release()
         httpd.serve_forever()
@@ -49,21 +51,25 @@ def grpc_server(capsys, unused_port_factory):
 
 
 def test_helloworld_sayhello(grpc_server):
-    with grpcWSGI.client.insecure_web_channel(f"http://localhost:{grpc_server}") as channel:
+    with grpcWSGI.client.insecure_web_channel(
+        f"http://localhost:{grpc_server}"
+    ) as channel:
         stub = helloworld_pb2_grpc.GreeterStub(channel)
 
-        for name in ('you', 'world'):
+        for name in ("you", "world"):
             request = helloworld_pb2.HelloRequest(name=name)
             response = stub.SayHello(request)
             assert response.message == FORMAT_STRING.format(request=request)
 
 
 def test_helloworld_sayhelloslowly(grpc_server):
-    with grpcWSGI.client.insecure_web_channel(f"http://localhost:{grpc_server}") as channel:
+    with grpcWSGI.client.insecure_web_channel(
+        f"http://localhost:{grpc_server}"
+    ) as channel:
         stub = helloworld_pb2_grpc.GreeterStub(channel)
 
-        for name in ('you', 'world'):
+        for name in ("you", "world"):
             request = helloworld_pb2.HelloRequest(name=name)
             response = stub.SayHelloSlowly(request)
-            message = ''.join(r.message for r in response)
+            message = "".join(r.message for r in response)
             assert message == FORMAT_STRING.format(request=request)
