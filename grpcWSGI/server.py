@@ -11,7 +11,7 @@ _HandlerCallDetails = namedtuple(
 )
 
 
-class grpcWSGI:
+class grpcWSGI(grpc.Server):
     """
     WSGI Application Object that understands gRPC-Web.
 
@@ -25,6 +25,18 @@ class grpcWSGI:
 
     def add_generic_rpc_handlers(self, handlers):
         self._handlers.extend(handlers)
+
+    def add_insecure_port(self, port):
+        raise NotImplementedError()
+
+    def add_secure_port(self, port):
+        raise NotImplementedError()
+
+    def start(self):
+        raise NotImplementedError()
+
+    def stop(self):
+        raise NotImplementedError()
 
     def _get_rpc_handler(self, environ):
         path = environ["PATH_INFO"]
