@@ -68,6 +68,7 @@ Instead of using gRPCs native `insecure_channel` API we have `grpcWSGI.client.in
  * Error handling
  * Compression?
  * Benchmarks?
+ * Clean up the CORS stuff.
  * StreamStream/StreamUnary RPCs?
  * Retries, caching and other client options.
  * Interop with Google's gRPC-Web implementation.
