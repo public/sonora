@@ -1,8 +1,20 @@
 version: 2
 jobs:
-  build:
+  test-py36:
+    docker:
+      - image: circleci/python:3.6
+    steps:
+      - checkout
+      - run: tox -e py36
+  test-py37:
     docker:
       - image: circleci/python:3.7
     steps:
       - checkout
-      - run: python setup.py test
+      - run: tox -e py37
+  black-py37:
+    docker:
+      - image: circleci/python:3.7
+    steps:
+      - checkout
+      - run: tox -e black
