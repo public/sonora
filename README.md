@@ -76,3 +76,4 @@ Instead of using gRPCs native `insecure_channel` API we have `grpcWSGI.client.in
  * application/grpc-web-text support? Do I care about IE10?
  * aiohttp / grpc-aiohttp integration?
  * MyPy annotations?
+ * Use more of the ABCs and other standard stuff from the grpc package
