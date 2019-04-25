@@ -101,10 +101,7 @@ class UnaryStream:
 
 
 class WebRpcError(grpc.RpcError):
-    _code_to_enum = {
-        code.value[0]: code
-        for code in grpc.StatusCode
-    }
+    _code_to_enum = {code.value[0]: code for code in grpc.StatusCode}
 
     def __init__(self, code, details, *args, **kwargs):
         super(WebRpcError, self).__init__(*args, **kwargs)
@@ -114,8 +111,8 @@ class WebRpcError(grpc.RpcError):
 
     @classmethod
     def from_response(cls, response):
-        status = int(response.headers['grpc-status'])
-        details = response.headers['grpc-message']
+        status = int(response.headers["grpc-status"])
+        details = response.headers["grpc-message"]
 
         code = cls._code_to_enum[status]
 
