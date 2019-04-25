@@ -63,7 +63,7 @@ class UnaryUnary:
         )
 
         if resp.status_code != 200:
-            raise WebRpcError(resp.status_code, resp.content)
+            raise WebRpcError.from_response(resp)
         else:
             _, message = protocol.unrwap_message(resp.content)
             return self._deserializer(message)
@@ -94,18 +94,32 @@ class UnaryStream:
         )
 
         if resp.status_code != 200:
-            raise WebRpcError(resp.status_code, resp.content)
+            raise WebRpcError.from_response(resp)
         else:
             for _, message in protocol.unwrap_message_stream(resp.raw):
                 yield self._deserializer(message)
 
 
 class WebRpcError(grpc.RpcError):
+    _code_to_enum = {
+        code.value[0]: code
+        for code in grpc.StatusCode
+    }
+
     def __init__(self, code, details, *args, **kwargs):
         super(WebRpcError, self).__init__(*args, **kwargs)
 
         self._code = code
         self._details = details
+
+    @classmethod
+    def from_response(cls, response):
+        status = int(response.headers['grpc-status'])
+        details = response.headers['grpc-message']
+
+        code = cls._code_to_enum[status]
+
+        return cls(code, details)
 
     def __str__(self):
         return "WebRpcError(status_code={}, details='{}')".format(
