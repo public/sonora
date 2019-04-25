@@ -1,5 +1,7 @@
 syntax = "proto3";
 
+import "google/protobuf/empty.proto";
+
 package helloworld;
 
 // The greeting service definition.
@@ -9,6 +11,8 @@ service Greeter {
 
   // Sends a greeting 1 byte a time
   rpc SayHelloSlowly (HelloRequest) returns (stream HelloReply) {}
+
+  rpc Abort(google.protobuf.Empty) returns (google.protobuf.Empty) {}
 }
 
 // The request message containing the user's name.

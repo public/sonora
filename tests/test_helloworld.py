@@ -4,6 +4,8 @@ from wsgiref.simple_server import make_server
 import grpcWSGI.client
 import grpcWSGI.server
 
+import grpc
+from google.protobuf.empty_pb2 import Empty
 import pytest
 
 from tests import helloworld_pb2
@@ -24,6 +26,9 @@ def _server(lock, port):
             message = FORMAT_STRING.format(request=request)
             for char in message:
                 yield helloworld_pb2.HelloReply(message=char)
+
+        def Abort(self, request, context):
+            context.abort(grpc.StatusCode.ABORTED, "test aborting")
 
     grpc_wsgi_app = grpcWSGI.server.grpcWSGI(None)
 
@@ -73,3 +78,16 @@ def test_helloworld_sayhelloslowly(grpc_server):
             response = stub.SayHelloSlowly(request)
             message = "".join(r.message for r in response)
             assert message == FORMAT_STRING.format(request=request)
+
+
+def test_helloworld_abort(grpc_server):
+    with grpcWSGI.client.insecure_web_channel(
+        f"http://localhost:{grpc_server}"
+    ) as channel:
+        stub = helloworld_pb2_grpc.GreeterStub(channel)
+
+        with pytest.raises(grpc.RpcError) as exc:
+            stub.Abort(Empty())
+
+        assert exc.value.code() == grpc.StatusCode.ABORTED
+        assert exc.value.details() == "test aborting"
