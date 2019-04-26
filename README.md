@@ -76,3 +76,4 @@ Instead of using gRPCs native `insecure_channel` API we have `grpcWSGI.client.in
  * aiohttp / grpc-aiohttp / ASGI integration?
  * MyPy annotations?
  * Use more of the ABCs and other standard stuff from the grpc package
+ * Support trailers
