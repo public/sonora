@@ -1,5 +1,5 @@
 import os
-from urllib.parse import urljoin
+from urllib.parse import urljoin, unquote
 
 import grpc
 import requests
@@ -9,6 +9,30 @@ from grpcWSGI import protocol
 
 def insecure_web_channel(url):
     return WebChannel(url)
+
+
+def _iter_resp(resp):
+    trailer_message = None
+
+    for trailers, _, message in protocol.unwrap_message_stream(resp.raw):
+        if trailers:
+            trailer_message = message
+            break
+        else:
+            yield message
+
+    if trailer_message:
+        metadata = dict(protocol.unpack_trailers(trailer_message))
+    else:
+        metadata = resp.headers
+
+    if "grpc-message" in metadata:
+        metadata["grpc-message"] = unquote(metadata["grpc-message"])
+
+    print("META", metadata)
+
+    if metadata["grpc-status"] != "0":
+        raise WebRpcError.from_metadata(metadata)
 
 
 class WebChannel:
@@ -55,24 +79,15 @@ class UnaryUnary:
 
         headers = {"x-user-agent": "grpc-web-python/0.1"}
 
-        resp = self._session.post(
+        with self._session.post(
             url,
             data=protocol.wrap_message(False, False, self._serializer(request)),
             headers=headers,
             timeout=timeout,
-        )
-
-        if resp.status_code != 200:
-            raise WebRpcError.from_response(resp)
-        else:
-            resp_obj = None
-            for trailers, _, message in protocol.unwrap_message_stream(resp.raw):
-                if trailers:
-                    continue
-                else:
-                    resp_obj = self._deserializer(message)
-
-            return resp_obj
+            stream=True,
+        ) as resp:
+            messages = list(_iter_resp(resp))
+            return self._deserializer(messages[0])
 
 
 class UnaryStream:
@@ -91,22 +106,15 @@ class UnaryStream:
 
         headers = {"x-user-agent": "grpc-web-python/0.1"}
 
-        resp = self._session.post(
+        with self._session.post(
             url,
             data=protocol.wrap_message(False, False, self._serializer(request)),
             headers=headers,
             timeout=timeout,
             stream=True,
-        )
-
-        if resp.status_code != 200:
-            raise WebRpcError.from_response(resp)
-        else:
-            for trailers, _, message in protocol.unwrap_message_stream(resp.raw):
-                if trailers:
-                    continue
-                else:
-                    yield self._deserializer(message)
+        ) as resp:
+            for message in _iter_resp(resp):
+                yield self._deserializer(message)
 
 
 class WebRpcError(grpc.RpcError):
@@ -119,9 +127,10 @@ class WebRpcError(grpc.RpcError):
         self._details = details
 
     @classmethod
-    def from_response(cls, response):
-        status = int(response.headers["grpc-status"])
-        details = response.headers["grpc-message"]
+    def from_metadata(cls, trailers):
+        trailers = dict(trailers)
+        status = int(trailers["grpc-status"])
+        details = trailers.get("grpc-message")
 
         code = cls._code_to_enum[status]
 

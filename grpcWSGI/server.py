@@ -1,6 +1,7 @@
 from collections import namedtuple
 from importlib import import_module
 from itertools import chain
+from urllib.parse import quote
 
 import grpc
 
@@ -10,10 +11,6 @@ from grpcWSGI import protocol
 _HandlerCallDetails = namedtuple(
     "_HandlerCallDetails", ("method", "invocation_metadata")
 )
-
-
-def _serialize_kv(k, v):
-    return "{0}: {1}\r\n".format(k.lower(), v).encode("utf8")
 
 
 class grpcWSGI(grpc.Server):
@@ -69,6 +66,8 @@ class grpcWSGI(grpc.Server):
         _, _, message = protocol.unrwap_message(request_data)
         request_proto = rpc_method.request_deserializer(message)
 
+        resp = []
+
         try:
             if not rpc_method.request_streaming and not rpc_method.response_streaming:
                 resp = [rpc_method.unary_unary(request_proto, context)]
@@ -79,16 +78,10 @@ class grpcWSGI(grpc.Server):
         except RpcAbort:
             pass
 
-        if context.code == grpc.StatusCode.OK:
-            content_type = "application/grpc-web+proto"
-        else:
-            resp = []
-            content_type = "text/plain"
-
         start_response(
             _grpc_status_to_wsgi_status(context.code),
             [
-                ("Content-Type", content_type),
+                ("Content-Type", "application/grpc-web+proto"),
                 ("Access-Control-Allow-Origin", "*"),
                 ("Access-Control-Expose-Headers", "*"),
             ],
@@ -99,13 +92,13 @@ class grpcWSGI(grpc.Server):
                 False, False, rpc_method.response_serializer(message)
             )
 
-        trailers = [
-            ("grpc-status", str(context.code.value[0])),
-            ("grpc-message", str(context.details)),
-        ]
+        trailers = [("grpc-status", str(context.code.value[0]))]
 
-        for k, v in trailers:
-            yield protocol.wrap_message(True, False, _serialize_kv(k, v))
+        if context.details:
+            trailers.append(("grpc-message", quote(context.details)))
+
+        trailer_message = protocol.pack_trailers(trailers)
+        yield protocol.wrap_message(True, False, trailer_message)
 
     def _do_cors_preflight(self, environ, start_response):
         start_response(

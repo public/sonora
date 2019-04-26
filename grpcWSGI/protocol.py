@@ -38,7 +38,6 @@ def unrwap_message(message):
 
 
 def unwrap_message_stream(stream):
-
     data = stream.read(_HEADER_LENGTH)
 
     while data:
@@ -47,4 +46,25 @@ def unwrap_message_stream(stream):
 
         yield trailers, compressed, stream.read(length)
 
+        if trailers:
+            break
+
         data = stream.read(_HEADER_LENGTH)
+
+
+def pack_trailers(trailers):
+    message = []
+    for k, v in trailers:
+        k = k.lower()
+        message.append("{0}: {1}\r\n".format(k, v).encode("utf8"))
+    return b"".join(message)
+
+
+def unpack_trailers(message):
+    trailers = []
+    for line in message.decode("utf8").splitlines():
+        k, v = line.split(":", 1)
+        v = v.strip()
+
+        trailers.append((k, v))
+    return trailers
