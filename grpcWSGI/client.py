@@ -57,7 +57,7 @@ class UnaryUnary:
 
         resp = self._session.post(
             url,
-            data=protocol.wrap_message(False, self._serializer(request)),
+            data=protocol.wrap_message(False, False, self._serializer(request)),
             headers=headers,
             timeout=timeout,
         )
@@ -65,8 +65,14 @@ class UnaryUnary:
         if resp.status_code != 200:
             raise WebRpcError.from_response(resp)
         else:
-            _, message = protocol.unrwap_message(resp.content)
-            return self._deserializer(message)
+            resp_obj = None
+            for trailers, _, message in protocol.unwrap_message_stream(resp.raw):
+                if trailers:
+                    continue
+                else:
+                    resp_obj = self._deserializer(message)
+
+            return resp_obj
 
 
 class UnaryStream:
@@ -87,7 +93,7 @@ class UnaryStream:
 
         resp = self._session.post(
             url,
-            data=protocol.wrap_message(False, self._serializer(request)),
+            data=protocol.wrap_message(False, False, self._serializer(request)),
             headers=headers,
             timeout=timeout,
             stream=True,
@@ -96,8 +102,11 @@ class UnaryStream:
         if resp.status_code != 200:
             raise WebRpcError.from_response(resp)
         else:
-            for _, message in protocol.unwrap_message_stream(resp.raw):
-                yield self._deserializer(message)
+            for trailers, _, message in protocol.unwrap_message_stream(resp.raw):
+                if trailers:
+                    continue
+                else:
+                    yield self._deserializer(message)
 
 
 class WebRpcError(grpc.RpcError):

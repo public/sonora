@@ -1,5 +1,6 @@
 from collections import namedtuple
 from importlib import import_module
+from itertools import chain
 
 import grpc
 
@@ -9,6 +10,10 @@ from grpcWSGI import protocol
 _HandlerCallDetails = namedtuple(
     "_HandlerCallDetails", ("method", "invocation_metadata")
 )
+
+
+def _serialize_kv(k, v):
+    return "{0}: {1}\r\n".format(k.lower(), v).encode("utf8")
 
 
 class grpcWSGI(grpc.Server):
@@ -61,7 +66,7 @@ class grpcWSGI(grpc.Server):
 
         context = gRPCContext()
 
-        _compressed, message = protocol.unrwap_message(request_data)
+        _, _, message = protocol.unrwap_message(request_data)
         request_proto = rpc_method.request_deserializer(message)
 
         try:
@@ -86,15 +91,21 @@ class grpcWSGI(grpc.Server):
                 ("Content-Type", content_type),
                 ("Access-Control-Allow-Origin", "*"),
                 ("Access-Control-Expose-Headers", "*"),
-                ("grpc-status", str(context.code.value[0])),
-                ("grpc-message", str(context.details)),
             ],
         )
 
-        return [
-            protocol.wrap_message(False, rpc_method.response_serializer(message))
-            for message in resp
+        for message in resp:
+            yield protocol.wrap_message(
+                False, False, rpc_method.response_serializer(message)
+            )
+
+        trailers = [
+            ("grpc-status", str(context.code.value[0])),
+            ("grpc-message", str(context.details)),
         ]
+
+        for k, v in trailers:
+            yield protocol.wrap_message(True, False, _serialize_kv(k, v))
 
     def _do_cors_preflight(self, environ, start_response):
         start_response(
