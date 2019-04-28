@@ -5,8 +5,8 @@ from grpcWSGI import protocol
 
 def test_wrapping():
     data = b"foobar"
-    wrapped = protocol.wrap_message(False, data)
-    assert protocol.unrwap_message(wrapped) == (False, data)
+    wrapped = protocol.wrap_message(False, False, data)
+    assert protocol.unrwap_message(wrapped) == (False, False, data)
 
 
 def test_unwrapping_stream():
@@ -19,12 +19,12 @@ def test_unwrapping_stream():
         b"Could frame thy fearful symmetry?",
     ]
     for message in messages:
-        buffer.write(protocol.wrap_message(False, message))
+        buffer.write(protocol.wrap_message(False, False, message))
 
     buffer.seek(0)
 
     resp_messages = []
-    for _, resp in protocol.unwrap_message_stream(buffer):
+    for _, _, resp in protocol.unwrap_message_stream(buffer):
         resp_messages.append(resp)
 
     assert resp_messages == messages

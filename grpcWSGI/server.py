@@ -1,5 +1,7 @@
 from collections import namedtuple
 from importlib import import_module
+from itertools import chain
+from urllib.parse import quote
 
 import grpc
 
@@ -61,8 +63,10 @@ class grpcWSGI(grpc.Server):
 
         context = gRPCContext()
 
-        _compressed, message = protocol.unrwap_message(request_data)
+        _, _, message = protocol.unrwap_message(request_data)
         request_proto = rpc_method.request_deserializer(message)
+
+        resp = []
 
         try:
             if not rpc_method.request_streaming and not rpc_method.response_streaming:
@@ -74,27 +78,27 @@ class grpcWSGI(grpc.Server):
         except RpcAbort:
             pass
 
-        if context.code == grpc.StatusCode.OK:
-            content_type = "application/grpc-web+proto"
-        else:
-            resp = []
-            content_type = "text/plain"
-
         start_response(
             _grpc_status_to_wsgi_status(context.code),
             [
-                ("Content-Type", content_type),
+                ("Content-Type", "application/grpc-web+proto"),
                 ("Access-Control-Allow-Origin", "*"),
                 ("Access-Control-Expose-Headers", "*"),
-                ("grpc-status", str(context.code.value[0])),
-                ("grpc-message", str(context.details)),
             ],
         )
 
-        return [
-            protocol.wrap_message(False, rpc_method.response_serializer(message))
-            for message in resp
-        ]
+        for message in resp:
+            yield protocol.wrap_message(
+                False, False, rpc_method.response_serializer(message)
+            )
+
+        trailers = [("grpc-status", str(context.code.value[0]))]
+
+        if context.details:
+            trailers.append(("grpc-message", quote(context.details)))
+
+        trailer_message = protocol.pack_trailers(trailers)
+        yield protocol.wrap_message(True, False, trailer_message)
 
     def _do_cors_preflight(self, environ, start_response):
         start_response(
