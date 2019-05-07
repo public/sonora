@@ -53,13 +53,46 @@ class grpcWSGI(grpc.Server):
 
         return None
 
-    def _do_grpc_request(self, rpc_method, environ, start_response):
+    def _read_request(self, environ):
         try:
-            content_length = int(environ.get("CONTENT_LENGTH", 0))
+            content_length = environ.get("CONTENT_LENGTH")
+            if content_length:
+                content_length = int(content_length)
+            else:
+                content_length = None
         except ValueError:
-            content_length = 0
+            content_length = None
 
-        request_data = environ["wsgi.input"].read(content_length)
+        stream = environ["wsgi.input"]
+
+        transfer_encoding = environ.get("HTTP_TRANSFER_ENCODING")
+
+        if transfer_encoding == "chunked":
+            buffer = []
+            line = stream.readline()
+
+            while line:
+                if not line:
+                    break
+
+                size = line.split(b";", 1)[0]
+
+                if size == "\r\n":
+                    break
+
+                chunk_size = int(size, 16)
+
+                if chunk_size == 0:
+                    break
+
+                buffer.append(stream.read(chunk_size + 2)[:-2])
+                line = stream.readline()
+            return b"".join(buffer)
+        else:
+            return stream.read(content_length or 5)
+
+    def _do_grpc_request(self, rpc_method, environ, start_response):
+        request_data = self._read_request(environ)
 
         context = gRPCContext()
 
