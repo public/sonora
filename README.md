@@ -77,3 +77,4 @@ Instead of using gRPCs native `insecure_channel` API we have `grpcWSGI.client.in
  * MyPy annotations?
  * Use more of the ABCs and other standard stuff from the grpc package
  * Make support for chunked encoding vaguely reliable
+ * Some kind of metaclass magic to make it easier to ensure you've actually implemented a servers interface
