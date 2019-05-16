@@ -29,8 +29,6 @@ def _iter_resp(resp):
     if "grpc-message" in metadata:
         metadata["grpc-message"] = unquote(metadata["grpc-message"])
 
-    print("META", metadata)
-
     if metadata["grpc-status"] != "0":
         raise WebRpcError.from_metadata(metadata)
 
