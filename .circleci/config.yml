@@ -40,10 +40,10 @@ jobs:
       - run: pip3 install grpcio-tools grpcio requests
       - run: |
           python3 -m grpc.tools.protoc \
-            --proto_path=../grpcWSGI \
+            --proto_path=$(pwd) \
             --python_out=. \
             --grpc_python_out=. \
-            ../grpcWSGI/echo/echo.proto
+            $(pwd)/echo/echo.proto
       - run:
           background: true
           command: python echo/server.py
