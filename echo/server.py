@@ -3,7 +3,7 @@ from wsgiref.simple_server import make_server
 
 import grpc
 
-import grpcWSGI.server
+from .. import grpcWSGI.server
 
 from echo import echo_pb2
 from echo import echo_pb2_grpc
