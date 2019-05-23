@@ -47,6 +47,6 @@ jobs:
       - run:
           background: true
           command: python3 echo/server.py
-      - run: |
-          cd /home/node/src
-          ./node_modules/.bin/grunt karma:$1 --grpc-host=http://localhost:8080
+      - run: cd /home/node/src
+      - run: ./node_modules/.bin/grunt karma:improbable --grpc-host=http://localhost:8080
+      - run: ./node_modules/.bin/grunt karma:grpcWeb --grpc-host=http://localhost:8080
