@@ -35,7 +35,6 @@ jobs:
         entrypoint: /bin/bash
     steps:
       - checkout
-      - run: pwd; ls -l
       - run: sudo apt-get update
       - run: sudo apt-get install python3 python3-pip
       - run: pip3 install grpcio-tools grpcio requests
@@ -47,7 +46,7 @@ jobs:
             $(pwd)/echo/echo.proto
       - run:
           background: true
-          command: python echo/server.py
+          command: python3 echo/server.py
       - run: |
           cd /home/node/src
           ./node_modules/.bin/grunt karma:$1 --grpc-host=http://localhost:8080
