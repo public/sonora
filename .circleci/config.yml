@@ -6,6 +6,7 @@ workflows:
       - test-py36
       - test-py37
       - black-py37
+      - interop-chrome
 jobs:
   test-py36:
     docker:
@@ -28,3 +29,14 @@ jobs:
       - checkout
       - run: sudo pip install tox
       - run: tox -e black
+  interop-chrome:
+    docker:
+      - image: public/grpc-web-frontend-tests:latest
+    steps:
+      - checkout
+      - run: |
+        apt-get update
+        apt-get install python3
+        pip3 install -e .
+        python3 tests/server.py
+        ./node_modules/.bin/grunt karma:$1 --grpc-host=http://localhost:8080
