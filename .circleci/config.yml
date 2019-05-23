@@ -35,8 +35,6 @@ jobs:
         entrypoint: /bin/bash
     steps:
       - checkout
-      - run: sudo apt-get update
-      - run: sudo apt-get install python3 python3-pip
       - run: pip3 install grpcio-tools grpcio requests
       - run: |
           python3 -m grpc.tools.protoc \
