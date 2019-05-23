@@ -36,8 +36,6 @@ jobs:
     steps:
       - checkout
       - run: |
-          sudo apt-get update
-          sudo apt-get install python3
-          pip3 install -e .
+          pip install -e .
           python3 tests/server.py
           ./node_modules/.bin/grunt karma:$1 --grpc-host=http://localhost:8080
