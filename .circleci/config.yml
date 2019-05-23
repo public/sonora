@@ -35,7 +35,9 @@ jobs:
         entrypoint: /bin/bash
     steps:
       - checkout
-      - run: pip3 install -e .
+      - run: sudo apt-get update
+      - run: sudo apt-get install python-pip
+      - run: pip install -e .
       - run: |
           python -m grpc.tools.protoc \
             --proto_path=../grpcWSGI \
