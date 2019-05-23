@@ -46,7 +46,7 @@ jobs:
             $(pwd)/echo/echo.proto
       - run:
           background: true
-          command: python3 echo/server.py
+          command: PYTHONPATH=.:$PYTHONPATH python3 echo/server.py
       - run: cd /home/node/src
       - run: ./node_modules/.bin/grunt karma:improbable --grpc-host=http://localhost:8080
       - run: ./node_modules/.bin/grunt karma:grpcWeb --grpc-host=http://localhost:8080
