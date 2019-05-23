@@ -36,10 +36,10 @@ jobs:
     steps:
       - checkout
       - run: sudo apt-get update
-      - run: sudo apt-get install python-pip
-      - run: pip install -e .
+      - run: sudo apt-get install python3 python3-pip
+      - run: pip3 install -e .
       - run: |
-          python -m grpc.tools.protoc \
+          python3 -m grpc.tools.protoc \
             --proto_path=../grpcWSGI \
             --python_out=. \
             --grpc_python_out=. \
