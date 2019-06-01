@@ -120,12 +120,9 @@ class grpcWSGI(grpc.Server):
         # For unary responses we need to immediately set the status headers.
 
         if not rpc_method.response_streaming:
-            headers.extend(
-                (
-                    ("grpc-status", str(context.code.value[0])),
-                    ("grpc-message", quote(context.details)),
-                )
-            )
+            headers.append(("grpc-status", str(context.code.value[0])))
+            if context.details:
+                headers.append(("grpc-message", quote(context.details)))
 
         start_response(_grpc_status_to_wsgi_status(context.code), headers)
 
@@ -137,10 +134,9 @@ class grpcWSGI(grpc.Server):
         # For streaming responses only send the status header as a trailer.
 
         if rpc_method.response_streaming:
-            trailers = [
-                ("grpc-status", str(context.code.value[0])),
-                ("grpc-message", quote(context.details)),
-            ]
+            trailers = [("grpc-status", str(context.code.value[0]))]
+            if context.details:
+                trailers.append(("grpc-message", quote(context.details)))
 
             trailer_message = protocol.pack_trailers(trailers)
 
