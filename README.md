@@ -54,7 +54,7 @@ Setting up a client is similarly very simple and similar to standard gRPC calls.
 Instead of using gRPCs native `insecure_channel` API we have `grpcWSGI.client.insecure_web_channel` instead which provides a https://github.com/kennethreitz/requests powered client channel to a gRPC-Web server. e.g.
 
 ```python
-    import gRPCWSGI.client
+    import grpcWSGI.client
     
     with grpcWSGI.client.insecure_web_channel(
         f"http://localhost:8080"
