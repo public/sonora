@@ -72,7 +72,7 @@ Instead of using gRPCs native `insecure_channel` API we have `grpcWSGI.client.in
  * StreamStream/StreamUnary RPCs?
  * Retries, caching and other client options.
  * Quality of life integrations for Django, Flask etc.
- * application/grpc-web-text support? Do I care about IE10? JSON is potentially faster than Protobuf sometimes...
+ * application/grpc-web-text support? Blocked on Google actually documenting it.
  * aiohttp / grpc-aiohttp / ASGI integration?
  * MyPy annotations? https://github.com/dropbox/mypy-protobuf Already makes this pretty OK.
  * Use more of the ABCs and other standard stuff from the grpc package
