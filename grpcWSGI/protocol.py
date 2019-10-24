@@ -62,7 +62,7 @@ async def unwrap_message_asgi(receive):
 
     while True:
         event = await receive()
-        assert event["type"] == "http.request"
+        assert event["type"].startswith("http.")
 
         buffer += event["body"]
 
