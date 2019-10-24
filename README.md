@@ -19,7 +19,7 @@ gRPC-WSGI is designed to require minimal changes to an existing WSGI or gRPC cod
 
 ### Server
 
-Normally a WSGI application (such as your favourite Django app) will call something such as 
+Normally a WSGI application (such as your favourite Django app) will call something such as
 
 ```python
 from django.core.wsgi import get_wsgi_application
@@ -32,7 +32,7 @@ To add gRPC-WSGI to an application like the above all you need to do to enable i
 
 ```python
 from django.core.wsgi import get_wsgi_application
-from grpcWSGI.server import grpcWSGI
+from grpcWSGI.wsgi import grpcWSGI
 
 application = get_wsgi_application()
 application = grpcWSGI(application)
@@ -54,8 +54,8 @@ Setting up a client is similarly very simple and similar to standard gRPC calls.
 Instead of using gRPCs native `insecure_channel` API we have `grpcWSGI.client.insecure_web_channel` instead which provides a https://github.com/kennethreitz/requests powered client channel to a gRPC-Web server. e.g.
 
 ```python
-    import grpcWSGI.client
-    
+    import gRPCWSGI.client
+
     with grpcWSGI.client.insecure_web_channel(
         f"http://localhost:8080"
     ) as channel:

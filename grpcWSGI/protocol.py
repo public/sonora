@@ -72,10 +72,10 @@ async def unwrap_message_asgi(receive):
 
             if len(buffer) >= _HEADER_LENGTH + length:
                 waiting = False
-                data = buffer[_HEADER_LENGTH:_HEADER_LENGTH + length]
+                data = buffer[_HEADER_LENGTH : _HEADER_LENGTH + length]
                 trailers, compressed = _unpack_header_flags(flags)
                 yield trailers, compressed, data
-                buffer = buffer[_HEADER_LENGTH + length:]
+                buffer = buffer[_HEADER_LENGTH + length :]
             else:
                 waiting = True
 

@@ -2,7 +2,7 @@ import multiprocessing
 from wsgiref.simple_server import make_server
 
 import grpcWSGI.client
-import grpcWSGI.server
+import grpcWSGI.wsgi
 
 import grpc
 from google.protobuf.empty_pb2 import Empty
@@ -30,7 +30,7 @@ def _server(lock, port):
         def Abort(self, request, context):
             context.abort(grpc.StatusCode.ABORTED, "test aborting")
 
-    grpc_wsgi_app = grpcWSGI.server.grpcWSGI(None)
+    grpc_wsgi_app = grpcWSGI.wsgi.grpcWSGI(None)
 
     with make_server("127.0.0.1", port, grpc_wsgi_app) as httpd:
         helloworld_pb2_grpc.add_GreeterServicer_to_server(Greeter(), grpc_wsgi_app)
