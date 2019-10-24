@@ -55,9 +55,11 @@ class WebChannel:
         )
 
     def stream_unary(self, path, request_serializer, response_deserializer):
+        return None
         raise NotImplementedError()
 
     def stream_stream(self, path, request_serializer, response_deserializer):
+        return None
         raise NotImplementedError()
 
 
