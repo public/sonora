@@ -19,7 +19,7 @@ class gRPCContext(grpc.ServicerContext):
         self.set_code(code)
         self.set_details(details)
 
-        raise RpcAbort()
+        raise grpc.RpcError()
 
     def abort_with_status(self, status):
         if status == grpc.StatusCode.OK:
@@ -27,7 +27,7 @@ class gRPCContext(grpc.ServicerContext):
 
         self.set_code(status)
 
-        raise RpcAbort()
+        raise grpc.RpcError()
 
     def invocation_metadata(self):
         raise NotImplementedError()

@@ -107,7 +107,7 @@ class grpcWSGI(grpc.Server):
                 resp = rpc_method.unary_stream(request_proto, context)
             else:
                 raise NotImplementedError()
-        except RpcAbort:
+        except grpc.RpcError:
             pass
 
         headers = [
@@ -176,10 +176,6 @@ class grpcWSGI(grpc.Server):
                 return []
 
         return self._application(environ, start_response)
-
-
-class RpcAbort(grpc.RpcError):
-    pass
 
 
 def _grpc_status_to_wsgi_status(code):
