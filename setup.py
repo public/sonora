@@ -9,31 +9,26 @@ from setuptools.command.test import test
 
 base_dir = os.path.abspath(os.path.dirname(__file__))
 
-# Package meta-data.
-NAME = "grpcWSGI"
+NAME = "sonora"
 DESCRIPTION = "gRPC-Web + WSGI"
-URL = "https://github.com/public/grpcWSGI"
+URL = "https://github.com/public/sonora"
 EMAIL = "alexs@prol.etari.at"
 AUTHOR = "Alex Stapleton"
 REQUIRES_PYTHON = ">=3.6.0"
 VERSION = None
 
-# What packages are required for this module to be executed?
 REQUIRED = ["grpcio", "requests"]
 
-# What packages are optional?
-EXTRAS = {
-    # 'fancy feature': ['django'],
-}
+TESTS_REQUIRED = [
+    "grpcio-tools",
+    "pytest",
+    "pytest-mockservers",
+    "pytest-asyncio",
+    "requests",
+    "daphne",
+]
 
-# What packages are needed to run the tests?
-TESTS_REQUIRED = ["grpcio-tools", "pytest", "pytest-mockservers", "requests"]
-
-# The rest you shouldn't have to touch too much :)
-# ------------------------------------------------
-# Except, perhaps the License and Trove Classifiers!
-# If you do change the License, remember to change the Trove Classifier for that!
-
+EXTRAS = {"tests": TESTS_REQUIRED}
 
 # Import the README and use it as the long-description.
 # Note: this will only work if 'README.md' is present in your MANIFEST.in file!
@@ -89,31 +84,6 @@ class UploadCommand(Command):
         sys.exit()
 
 
-class PyTest(test):
-    def run_tests(self):
-        # Import here because in module scope the eggs are not loaded.
-        import pytest
-
-        test_args = [os.path.join(base_dir, "tests")]
-
-        print("Building protos...")
-        print(os.getcwd())
-        code = subprocess.call(
-            " python -m grpc.tools.protoc"
-            " --proto_path=tests/protos/"
-            " --python_out=."
-            " --grpc_python_out=."
-            " tests/protos/tests/helloworld.proto",
-            shell=True,
-        )
-
-        if code:
-            sys.exit(code)
-
-        errno = pytest.main(test_args)
-        sys.exit(errno)
-
-
 if __name__ == "__main__":
     # Where the magic happens:
     setup(
@@ -143,10 +113,9 @@ if __name__ == "__main__":
             "License :: OSI Approved :: MIT License",
             "Programming Language :: Python",
             "Programming Language :: Python :: 3",
-            "Programming Language :: Python :: 3.6",
+            "Programming Language :: Python :: 3.7",
             "Programming Language :: Python :: Implementation :: CPython",
-            "Programming Language :: Python :: Implementation :: PyPy",
         ],
         # $ setup.py publish support.
-        cmdclass={"upload": UploadCommand, "test": PyTest},
+        cmdclass={"upload": UploadCommand},
     )
