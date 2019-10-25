@@ -100,32 +100,28 @@ class grpcASGI(grpc.Server):
                         False, False, rpc_method.response_serializer(message)
                     )
                     await send({"type": "http.response.body", "body": body, "more_body": True})
+
+                trailers = [("grpc-status", str(context.code.value[0]))]
+                if context.details:
+                    trailers.append(("grpc-message", quote(context.details)))
+                trailer_message = protocol.pack_trailers(trailers)
+                body = protocol.wrap_message(True, False, trailer_message)
+                await send({"type": "http.response.body", "body": body, "more_body": False})
             else:
                 message = await coroutine
 
                 status = protocol.grpc_status_to_http_status(context.code)
 
+                headers.append((b"grpc-status", bytes(context.code.value[0])))
+                if context.details:
+                    headers.append((b"grpc-message", quote(context.details)))
+
                 body = protocol.wrap_message(False, False, rpc_method.response_serializer(message))
 
                 await send({"type": "http.response.start", "status": status, "headers": headers})
-                response_started = True
-                await send({"type": "http.response.body", "body": body, "more_body": True})
+                await send({"type": "http.response.body", "body": body, "more_body": False})
         except grpc.RpcError:
             pass
-
-        trailers = [("grpc-status", str(context.code.value[0]))]
-
-        if context.details:
-            trailers.append(("grpc-message", quote(context.details)))
-
-        trailer_message = protocol.pack_trailers(trailers)
-        body = protocol.wrap_message(True, False, trailer_message)
-
-        if not response_started:
-            status = protocol.grpc_status_to_http_status(context.code)
-            await send({"type": "http.response.start", "status": status, "headers": headers})
-
-        await send({"type": "http.response.body", "body": body, "more_body": False})
 
     async def _do_cors_preflight(self, scope, receive, send):
         await send(
