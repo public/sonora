@@ -133,13 +133,13 @@ class grpcASGI(grpc.Server):
                 "type": "http.response.start",
                 "status": 200,
                 "headers": [
-                    ("Content-Type", "text/plain"),
-                    ("Content-Length", "0"),
-                    ("Access-Control-Allow-Methods", "POST, OPTIONS"),
-                    ("Access-Control-Allow-Headers", "*"),
-                    ("Access-Control-Allow-Origin", "*"),
-                    ("Access-Control-Allow-Credentials", "true"),
-                    ("Access-Control-Expose-Headers", "*"),
+                    (b"Content-Type", b"text/plain"),
+                    (b"Content-Length", b"0"),
+                    (b"Access-Control-Allow-Methods", b"POST, OPTIONS"),
+                    (b"Access-Control-Allow-Headers", b"*"),
+                    (b"Access-Control-Allow-Origin", b"*"),
+                    (b"Access-Control-Allow-Credentials", b"true"),
+                    (b"Access-Control-Expose-Headers", b"*"),
                 ],
             }
         )

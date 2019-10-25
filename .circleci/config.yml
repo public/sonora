@@ -6,7 +6,8 @@ workflows:
       - test-py36
       - test-py37
       - black-py37
-      - interop-chrome
+      - interop-chrome-wsgi
+      - interop-chrome-asgi
 jobs:
   test-py36:
     docker:
@@ -29,7 +30,7 @@ jobs:
       - checkout
       - run: sudo pip install tox
       - run: tox -e black
-  interop-chrome:
+  interop-chrome-wsgi:
     docker:
       - image: public/grpc-web-frontend-tests:latest
         entrypoint: /bin/bash
@@ -45,6 +46,28 @@ jobs:
       - run:
           background: true
           command: PYTHONPATH=.:$PYTHONPATH python3 echo/server.py
+      - run:
+          working_directory: /home/node/src
+          command: "./node_modules/.bin/grunt karma:improbable --grpc-host=http://localhost:8080"
+      - run:
+          working_directory: /home/node/src
+          command: "./node_modules/.bin/grunt karma:grpcWeb --grpc-host=http://localhost:8080"
+  interop-chrome-asgi:
+    docker:
+      - image: public/grpc-web-frontend-tests:latest
+        entrypoint: /bin/bash
+    steps:
+      - checkout
+      - run: sudo pip3 install grpcio-tools grpcio requests daphne
+      - run: |
+          python3 -m grpc.tools.protoc \
+            --proto_path=$(pwd) \
+            --python_out=. \
+            --grpc_python_out=. \
+            $(pwd)/echo/echo.proto
+      - run:
+          background: true
+          command: PYTHONPATH=.:$PYTHONPATH python3 echo/asgi.py
       - run:
           working_directory: /home/node/src
           command: "./node_modules/.bin/grunt karma:improbable --grpc-host=http://localhost:8080"
