@@ -7,9 +7,7 @@ import grpc
 from grpcWSGI import protocol
 from grpcWSGI.context import gRPCContext
 
-_HandlerCallDetails = namedtuple(
-    "_HandlerCallDetails", ("method", "invocation_metadata")
-)
+_HandlerCallDetails = namedtuple("_HandlerCallDetails", ("method", "invocation_metadata"))
 
 
 class grpcASGI(grpc.Server):
@@ -37,9 +35,7 @@ class grpcASGI(grpc.Server):
                 await self._do_cors_preflight(scope, receive, send)
             else:
                 await send({"type": "http.response.start", "status": 400})
-                await send(
-                    {"type": "http.response.body", "body": b"", "more_body": False}
-                )
+                await send({"type": "http.response.body", "body": b"", "more_body": False})
 
         elif self._application:
             await self._application(scope, receive, send)
@@ -86,54 +82,34 @@ class grpcASGI(grpc.Server):
             (b"Access-Control-Expose-Headers", b"*"),
         ]
 
+        response_started = False
         try:
             if rpc_method.response_streaming:
                 message = await anext(coroutine)
 
                 status = protocol.grpc_status_to_http_status(context.code)
 
-                body = protocol.wrap_message(
-                    False, False, rpc_method.response_serializer(message)
-                )
+                body = protocol.wrap_message(False, False, rpc_method.response_serializer(message))
 
-                await send(
-                    {
-                        "type": "http.response.start",
-                        "status": status,
-                        "headers": headers,
-                    }
-                )
-                await send(
-                    {"type": "http.response.body", "body": body, "more_body": True}
-                )
+                await send({"type": "http.response.start", "status": status, "headers": headers})
+                response_started = True
+                await send({"type": "http.response.body", "body": body, "more_body": True})
 
                 async for message in coroutine:
-                    print(message)
                     body = protocol.wrap_message(
                         False, False, rpc_method.response_serializer(message)
                     )
-                    await send(
-                        {"type": "http.response.body", "body": body, "more_body": True}
-                    )
+                    await send({"type": "http.response.body", "body": body, "more_body": True})
             else:
                 message = await coroutine
 
                 status = protocol.grpc_status_to_http_status(context.code)
 
-                body = protocol.wrap_message(
-                    False, False, rpc_method.response_serializer(message)
-                )
+                body = protocol.wrap_message(False, False, rpc_method.response_serializer(message))
 
-                await send(
-                    {
-                        "type": "http.response.start",
-                        "status": status,
-                        "headers": headers,
-                    }
-                )
-                await send(
-                    {"type": "http.response.body", "body": body, "more_body": True}
-                )
+                await send({"type": "http.response.start", "status": status, "headers": headers})
+                response_started = True
+                await send({"type": "http.response.body", "body": body, "more_body": True})
         except grpc.RpcError:
             pass
 
@@ -144,6 +120,10 @@ class grpcASGI(grpc.Server):
 
         trailer_message = protocol.pack_trailers(trailers)
         body = protocol.wrap_message(True, False, trailer_message)
+
+        if not response_started:
+            status = protocol.grpc_status_to_http_status(context.code)
+            await send({"type": "http.response.start", "status": status, "headers": headers})
 
         await send({"type": "http.response.body", "body": body, "more_body": False})
 
