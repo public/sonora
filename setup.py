@@ -21,13 +21,19 @@ VERSION = None
 # What packages are required for this module to be executed?
 REQUIRED = ["grpcio", "requests"]
 
-# What packages are optional?
-EXTRAS = {
-    # 'fancy feature': ['django'],
-}
-
 # What packages are needed to run the tests?
-TESTS_REQUIRED = ["grpcio-tools", "pytest", "pytest-mockservers", "pytest-asyncio", "requests"]
+TESTS_REQUIRED = [
+    "grpcio-tools",
+    "pytest",
+    "pytest-mockservers",
+    "pytest-asyncio",
+    "requests",
+    "daphne",
+]
+
+# What packages are optional?
+EXTRAS = {"tests": TESTS_REQUIRED}
+
 
 # The rest you shouldn't have to touch too much :)
 # ------------------------------------------------
@@ -89,31 +95,6 @@ class UploadCommand(Command):
         sys.exit()
 
 
-class PyTest(test):
-    def run_tests(self):
-        # Import here because in module scope the eggs are not loaded.
-        import pytest
-
-        test_args = [os.path.join(base_dir, "tests")]
-
-        print("Building protos...")
-        print(os.getcwd())
-        code = subprocess.call(
-            " python -m grpc.tools.protoc"
-            " --proto_path=tests/protos/"
-            " --python_out=."
-            " --grpc_python_out=."
-            " tests/protos/tests/helloworld.proto",
-            shell=True,
-        )
-
-        if code:
-            sys.exit(code)
-
-        errno = pytest.main(test_args)
-        sys.exit(errno)
-
-
 if __name__ == "__main__":
     # Where the magic happens:
     setup(
@@ -148,5 +129,5 @@ if __name__ == "__main__":
             "Programming Language :: Python :: Implementation :: PyPy",
         ],
         # $ setup.py publish support.
-        cmdclass={"upload": UploadCommand, "test": PyTest},
+        cmdclass={"upload": UploadCommand},
     )

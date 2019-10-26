@@ -22,7 +22,9 @@ FORMAT_STRING = "Hello, {request.name}!"
 def _asgi_application():
     class Greeter(helloworld_pb2_grpc.GreeterServicer):
         async def SayHello(self, request, context):
-            return helloworld_pb2.HelloReply(message=FORMAT_STRING.format(request=request))
+            return helloworld_pb2.HelloReply(
+                message=FORMAT_STRING.format(request=request)
+            )
 
         async def SayHelloSlowly(self, request, context):
             message = FORMAT_STRING.format(request=request)
@@ -37,13 +39,13 @@ def _asgi_application():
 
     return grpc_asgi_app
 
+
 application = _asgi_application()
 
 
 def _server(lock, port):
-    os.system(f"daphne -p{port} tests.test_asgi_helloworld:application &")
-    time.sleep(1)
     lock.release()
+    os.system(f"daphne -p{port} tests.test_asgi_helloworld:application")
 
 
 @pytest.fixture(scope="function")
@@ -61,11 +63,16 @@ def grpc_server(capsys, unused_port_factory):
         server_proc.start()
 
     lock.acquire()
-    return port
+    time.sleep(1)
+    yield port
+    server_proc.kill()
+    server_proc.join()
 
 
 def test_helloworld_sayhello(grpc_server):
-    with grpcWSGI.client.insecure_web_channel(f"http://localhost:{grpc_server}") as channel:
+    with grpcWSGI.client.insecure_web_channel(
+        f"http://localhost:{grpc_server}"
+    ) as channel:
         stub = helloworld_pb2_grpc.GreeterStub(channel)
 
         for name in ("you", "world"):

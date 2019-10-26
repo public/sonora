@@ -126,7 +126,6 @@ class WebRpcError(grpc.RpcError):
 
     @classmethod
     def from_metadata(cls, trailers):
-        trailers = dict(trailers)
         status = int(trailers["grpc-status"])
         details = trailers.get("grpc-message")
 
