@@ -44,7 +44,11 @@ async def test_unwrapping_asgi():
     buffer = [protocol.wrap_message(False, False, message) for message in messages]
 
     async def receive():
-        return {"type": "http.request", "body": buffer.pop(0), "more_body": bool(buffer)}
+        return {
+            "type": "http.request",
+            "body": buffer.pop(0),
+            "more_body": bool(buffer),
+        }
 
     resp_messages = []
     async for _, _, resp in protocol.unwrap_message_asgi(receive):
