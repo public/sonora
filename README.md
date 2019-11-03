@@ -1,25 +1,35 @@
-[![CircleCI](https://circleci.com/gh/public/grpcWSGI.svg?style=svg)](https://circleci.com/gh/public/grpcWSGI)
+[![CircleCI](https://circleci.com/gh/public/sonora.svg?style=svg)](https://circleci.com/gh/public/sonora)
 
-# gRPC-WSGI
+# Sonora
 
-A gRPC-Web implementation based on Python's WSGI standard.
+Sonora is a Python-first implementation of gRPC-Web built on top of standard Python APIs like WSGI and ASGI for easy integration.
 
 ## Why?
 
-gRPC has a lot going for it but is awkward to use in some environments. gRPC-WSGI makes it easy to integrate gRPC when you need to use HTTP/1.1 load balancers or proxies, or want to integrate gRPC into existing services such as Django or Flask apps that speak a different protocol most of the time.
+Regular gRPC has a lot going for it but is awkward to use in some environments. gRPC-Web makes it easy to get gRPC working
+environments that need HTTP/1.1 but the Google gRPC and gRPC-Web implementations don't like to coexist with your normal Python
+frameworks like Django or Flask. Unlike [grpc/grpc](https://github.com/grpc/grpc) Sonora doesn't care what ioloop you use, this
+means you can run it along side any other Python web framework in the same application!
 
-There are two main capabilities this implementation has over Google's.
+This makes it easy to
 
- 1. HTTP/1.1 compatability via gRPC-Web, even for unary_stream RPCs using protobuf. Without the need for a sidecar proxy process like Envoy.
- 2. Run gRPC and other HTTP stuff on the same socket.
+- Add gRPC to an existing code base.
+- Run gRPC behind AWS and other HTTP/1.1 load balancers.
+- Integrate with other ASGI frameworks like Channels, Starlette, Quart etc.
+- Integrate with other WSGI frameworks like Flask, Django etc.
+
+The name Sonora was inspired by the [Sonoran gopher snake](https://en.wikipedia.org/wiki/Pituophis_catenifer_affinis).
 
 ## How?
 
-gRPC-WSGI is designed to require minimal changes to an existing WSGI or gRPC code base.
+Sonora is designed to require minimal changes to an existing Python application.
 
 ### Server
 
-Normally a WSGI application (such as your favourite Django app) will call something such as 
+#### WSGI
+
+Normally a WSGI application ([such as your favourite Django app](https://docs.djangoproject.com/en/2.2/howto/deployment/wsgi/)) will have a file somewhere named `wsgi.py`
+that gets your application setup and ready for your web server of choice.
 
 ```python
 from django.core.wsgi import get_wsgi_application
@@ -28,55 +38,69 @@ application = get_wsgi_application()
 
 in it somewhere so that your application server (uWSGI, Gunicorn etc) knows where your code is.
 
-To add gRPC-WSGI to an application like the above all you need to do to enable it is this.
+To add Sonora's gRPC-Web capabilities to an application like the above all you need to do to enable it is this.
 
 ```python
 from django.core.wsgi import get_wsgi_application
-from grpcWSGI.server import grpcWSGI
+from sonora.wsgi import sonora
+import helloworld_pb2_grpc
+
+# Setup your frameworks default WSGI app.
 
 application = get_wsgi_application()
+
+# Install the Sonora grpcWSGI middleware so we can handle requests to gRPC's paths.
+
 application = grpcWSGI(application)
-```
 
-The grpcWSGI application object also happens to be compatible with the normal grpc.Server interface.
-So all you need to do actually attach your RPCs and start making calls to your new service is the usual gRPC setup of e.g.
+# Attach your gRPC server implementation.
 
-```python
 helloworld_pb2_grpc.add_GreeterServicer_to_server(Greeter(), application)
 ```
 
 And now you have a combined HTTP/1.1 Django + gRPC application all under a single port.
 
-### Client
+#### ASGI
 
-Setting up a client is similarly very simple and similar to standard gRPC calls.
-
-Instead of using gRPCs native `insecure_channel` API we have `grpcWSGI.client.insecure_web_channel` instead which provides a https://github.com/kennethreitz/requests powered client channel to a gRPC-Web server. e.g.
+For ASGI things are mostly the same, the example shown here integrates with [Quart](https://github.com/pgjones/quart) but it's more or less the same for other frameworks.
 
 ```python
-    import grpcWSGI.client
-    
-    with grpcWSGI.client.insecure_web_channel(
+from sonora.asgi import grpcASGI
+from quart import Quart
+
+# Setup your frameworks default ASGI app.
+
+application = Quart(__name__)
+
+# Install the Sonora grpcASGI middleware so we can handle requests to gRPC's paths.
+
+application = grpcASGI(application)
+
+# Attach your gRPC server implementation.
+
+helloworld_pb2_grpc.add_GreeterServicer_to_server(Greeter(), application)
+```
+
+And now you have a combined HTTP/1.1 Quart + gRPC application all under a single port.
+
+### Clients
+
+Sonora currently only provides a sync API implementation based on requests.
+
+#### Requests (Sync)
+
+Instead of using gRPCs native `insecure_channel` API we have `grpcWSGI.client.insecure_web_channel` instead which provides a [requests](https://github.com/kennethreitz/requests) powered client channel to a gRPC-Web server. e.g.
+
+```python
+    import sonora.client
+
+    with sonora.client.insecure_web_channel(
         f"http://localhost:8080"
     ) as channel:
         stub = helloworld_pb2_grpc.GreeterStub(channel)
         print(stub.SayHello("world"))
 ```
 
-# TODO
+#### Aiohttp (Async)
 
- * Error handling
- * Compression?
- * Benchmarks?
- * Clean up the CORS stuff.
- * StreamStream/StreamUnary RPCs?
- * Retries, caching and other client options.
- * Quality of life integrations for Django, Flask etc.
- * application/grpc-web-text support? Blocked on Google actually documenting it.
- * aiohttp / grpc-aiohttp / ASGI integration?
- * MyPy annotations? https://github.com/dropbox/mypy-protobuf Already makes this pretty OK.
- * Use more of the ABCs and other standard stuff from the grpc package
- * Make support for chunked encoding vaguely reliable
- * Some kind of metaclass magic to make it easier to ensure you've actually implemented a servers interface
- * Introspection support
- * Interceptor support
+Pull requests welcome.

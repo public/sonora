@@ -1,5 +1,7 @@
 import struct
 
+import grpc
+
 
 _HEADER_FORMAT = ">BI"
 _HEADER_LENGTH = struct.calcsize(_HEADER_FORMAT)
@@ -52,6 +54,35 @@ def unwrap_message_stream(stream):
         data = stream.read(_HEADER_LENGTH)
 
 
+async def unwrap_message_asgi(receive):
+    buffer = bytearray()
+    waiting = False
+    flags = None
+    length = None
+
+    while True:
+        event = await receive()
+        assert event["type"].startswith("http.")
+
+        buffer += event["body"]
+
+        if len(buffer) >= _HEADER_LENGTH:
+            if not waiting:
+                flags, length = struct.unpack(_HEADER_FORMAT, buffer[:_HEADER_LENGTH])
+
+            if len(buffer) >= _HEADER_LENGTH + length:
+                waiting = False
+                data = buffer[_HEADER_LENGTH : _HEADER_LENGTH + length]
+                trailers, compressed = _unpack_header_flags(flags)
+                yield trailers, compressed, data
+                buffer = buffer[_HEADER_LENGTH + length :]
+            else:
+                waiting = True
+
+        if not event.get("more_body"):
+            break
+
+
 def pack_trailers(trailers):
     message = []
     for k, v in trailers:
@@ -68,3 +99,24 @@ def unpack_trailers(message):
 
         trailers.append((k, v))
     return trailers
+
+
+def grpc_status_to_http_status(code):
+    if code == grpc.StatusCode.OK:
+        return 200
+    elif code is None:
+        return 200
+    elif code == grpc.StatusCode.UNKNOWN:
+        return 500
+    elif code == grpc.StatusCode.INTERNAL:
+        return 500
+    elif code == grpc.StatusCode.UNAVAILABLE:
+        return 503
+    elif code == grpc.StatusCode.INVALID_ARGUMENT:
+        return 400
+    elif code == grpc.StatusCode.UNIMPLEMENTED:
+        return 404
+    elif code == grpc.StatusCode.PERMISSION_DENIED:
+        return 403
+    else:
+        return 500

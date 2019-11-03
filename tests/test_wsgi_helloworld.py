@@ -1,8 +1,8 @@
 import multiprocessing
 from wsgiref.simple_server import make_server
 
-import grpcWSGI.client
-import grpcWSGI.server
+import sonora.client
+import sonora.wsgi
 
 import grpc
 from google.protobuf.empty_pb2 import Empty
@@ -30,7 +30,7 @@ def _server(lock, port):
         def Abort(self, request, context):
             context.abort(grpc.StatusCode.ABORTED, "test aborting")
 
-    grpc_wsgi_app = grpcWSGI.server.grpcWSGI(None)
+    grpc_wsgi_app = sonora.wsgi.grpcWSGI(None)
 
     with make_server("127.0.0.1", port, grpc_wsgi_app) as httpd:
         helloworld_pb2_grpc.add_GreeterServicer_to_server(Greeter(), grpc_wsgi_app)
@@ -56,7 +56,7 @@ def grpc_server(capsys, unused_port_factory):
 
 
 def test_helloworld_sayhello(grpc_server):
-    with grpcWSGI.client.insecure_web_channel(
+    with sonora.client.insecure_web_channel(
         f"http://localhost:{grpc_server}"
     ) as channel:
         stub = helloworld_pb2_grpc.GreeterStub(channel)
@@ -68,7 +68,7 @@ def test_helloworld_sayhello(grpc_server):
 
 
 def test_helloworld_sayhelloslowly(grpc_server):
-    with grpcWSGI.client.insecure_web_channel(
+    with sonora.client.insecure_web_channel(
         f"http://localhost:{grpc_server}"
     ) as channel:
         stub = helloworld_pb2_grpc.GreeterStub(channel)
@@ -81,7 +81,7 @@ def test_helloworld_sayhelloslowly(grpc_server):
 
 
 def test_helloworld_abort(grpc_server):
-    with grpcWSGI.client.insecure_web_channel(
+    with sonora.client.insecure_web_channel(
         f"http://localhost:{grpc_server}"
     ) as channel:
         stub = helloworld_pb2_grpc.GreeterStub(channel)
