@@ -1,4 +1,4 @@
-[![CircleCI](https://circleci.com/gh/public/grpcWSGI.svg?style=svg)](https://circleci.com/gh/public/grpcWSGI)
+[![CircleCI](https://circleci.com/gh/public/sonora.svg?style=svg)](https://circleci.com/gh/public/sonora)
 
 # Sonora
 
