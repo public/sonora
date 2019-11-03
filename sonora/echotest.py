@@ -1,5 +1,5 @@
 from google.protobuf.duration_pb2 import Duration
-import grpcWSGI.client
+import sonora.client
 from echo.echo import echo_pb2_grpc, echo_pb2
 
 c = grpcWSGI.client.insecure_web_channel("http://localhost:8888")

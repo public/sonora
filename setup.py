@@ -9,19 +9,16 @@ from setuptools.command.test import test
 
 base_dir = os.path.abspath(os.path.dirname(__file__))
 
-# Package meta-data.
-NAME = "grpcWSGI"
+NAME = "sonora"
 DESCRIPTION = "gRPC-Web + WSGI"
-URL = "https://github.com/public/grpcWSGI"
+URL = "https://github.com/public/sonora"
 EMAIL = "alexs@prol.etari.at"
 AUTHOR = "Alex Stapleton"
 REQUIRES_PYTHON = ">=3.6.0"
 VERSION = None
 
-# What packages are required for this module to be executed?
 REQUIRED = ["grpcio", "requests"]
 
-# What packages are needed to run the tests?
 TESTS_REQUIRED = [
     "grpcio-tools",
     "pytest",
@@ -31,15 +28,7 @@ TESTS_REQUIRED = [
     "daphne",
 ]
 
-# What packages are optional?
 EXTRAS = {"tests": TESTS_REQUIRED}
-
-
-# The rest you shouldn't have to touch too much :)
-# ------------------------------------------------
-# Except, perhaps the License and Trove Classifiers!
-# If you do change the License, remember to change the Trove Classifier for that!
-
 
 # Import the README and use it as the long-description.
 # Note: this will only work if 'README.md' is present in your MANIFEST.in file!

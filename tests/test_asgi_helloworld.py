@@ -2,8 +2,8 @@ import multiprocessing
 import os
 import time
 
-import grpcWSGI.client
-import grpcWSGI.asgi
+import sonora.client
+import sonora.asgi
 
 from daphne.cli import ASGI3Middleware
 import daphne.server

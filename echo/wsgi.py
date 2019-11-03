@@ -1,6 +1,6 @@
 import sys
 from wsgiref.simple_server import make_server
-import grpcWSGI.wsgi
+import sonora.wsgi
 
 from echo import echo_pb2
 from echo import echo_pb2_grpc

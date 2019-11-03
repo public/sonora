@@ -1,8 +1,8 @@
 import multiprocessing
 from wsgiref.simple_server import make_server
 
-import grpcWSGI.client
-import grpcWSGI.wsgi
+import sonora.client
+import sonora.wsgi
 
 import grpc
 from google.protobuf.empty_pb2 import Empty
