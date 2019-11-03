@@ -18,7 +18,7 @@ This makes it easy to
 - Integrate with other ASGI frameworks like Channels, Starlette, Quart etc.
 - Integrate with other WSGI frameworks like Flask, Django etc.
 
-The name Sonora was inspired by the [Sonoran gopher snake](https://en.wikipedia.org/wiki/Pituophis_catenifer_affinis).
+The name Sonora was inspired by the [Sonoran gopher snake](https://i.imgur.com/eqhQnlY.jpg).
 
 ![Snek](https://i.imgur.com/TtAPxYK.jpg)
 
