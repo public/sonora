@@ -20,6 +20,8 @@ This makes it easy to
 
 The name Sonora was inspired by the [Sonoran gopher snake](https://en.wikipedia.org/wiki/Pituophis_catenifer_affinis).
 
+![Snek](https://i.imgur.com/TtAPxYK.jpg)
+
 ## How?
 
 Sonora is designed to require minimal changes to an existing Python application.
