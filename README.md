@@ -6,7 +6,7 @@ Sonora is a Python-first implementation of gRPC-Web built on top of standard Pyt
 
 ## Why?
 
-Regular gRPC has a lot going for it but is awkward to use in some environments. gRPC-Web makes it easy to get gRPC working
+Regular gRPC has a lot going for it but is awkward to use in some environments. gRPC-Web makes it easy to get gRPC working in
 environments that need HTTP/1.1 but the Google gRPC and gRPC-Web implementations don't like to coexist with your normal Python
 frameworks like Django or Flask. Unlike [grpc/grpc](https://github.com/grpc/grpc) Sonora doesn't care what ioloop you use, this
 means you can run it along side any other Python web framework in the same application!
