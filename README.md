@@ -44,7 +44,7 @@ To add Sonora's gRPC-Web capabilities to an application like the above all you n
 
 ```python
 from django.core.wsgi import get_wsgi_application
-from sonora.wsgi import sonora
+from sonora.wsgi import grpcWSGI
 import helloworld_pb2_grpc
 
 # Setup your frameworks default WSGI app.
