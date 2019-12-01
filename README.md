@@ -91,7 +91,7 @@ Sonora currently only provides a sync API implementation based on requests.
 
 #### Requests (Sync)
 
-Instead of using gRPCs native `insecure_channel` API we have `grpcWSGI.client.insecure_web_channel` instead which provides a [requests](https://github.com/kennethreitz/requests) powered client channel to a gRPC-Web server. e.g.
+Instead of using gRPCs native `insecure_channel` API we have `sonora.client.insecure_web_channel` instead which provides a [requests](https://github.com/kennethreitz/requests) powered client channel to a gRPC-Web server. e.g.
 
 ```python
     import sonora.client
