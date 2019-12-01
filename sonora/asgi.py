@@ -13,7 +13,8 @@ _HandlerCallDetails = namedtuple(
 
 
 class grpcASGI(grpc.Server):
-    def __init__(self):
+    def __init__(self, application=None):
+        self._application = application
         self._handlers = []
 
     async def __call__(self, scope, receive, send):
@@ -43,6 +44,10 @@ class grpcASGI(grpc.Server):
 
         elif self._application:
             await self._application(scope, receive, send)
+
+        else:
+            await send({"type": "http.response.start", "status": 404})
+            await send({"type": "http.response.body", "body": b"", "more_body": False})
 
     def _get_rpc_handler(self, path):
         handler_call_details = _HandlerCallDetails(path, None)

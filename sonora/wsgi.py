@@ -20,7 +20,7 @@ class grpcWSGI(grpc.Server):
     connections. That means we can't use the normal gRPC I/O loop etc.
     """
 
-    def __init__(self, application):
+    def __init__(self, application=None):
         self._application = application
         self._handlers = []
 
@@ -175,7 +175,11 @@ class grpcWSGI(grpc.Server):
                 start_response("400 Bad Request", [])
                 return []
 
-        return self._application(environ, start_response)
+        if self._application:
+            return self._application(environ, start_response)
+        else:
+            start_response("404 Not Found", [])
+            return []
 
 
 def _grpc_status_to_wsgi_status(code):
