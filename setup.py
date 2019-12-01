@@ -10,12 +10,11 @@ from setuptools.command.test import test
 base_dir = os.path.abspath(os.path.dirname(__file__))
 
 NAME = "sonora"
-DESCRIPTION = "gRPC-Web + WSGI"
+DESCRIPTION = "gRPC-Web for Python"
 URL = "https://github.com/public/sonora"
 EMAIL = "alexs@prol.etari.at"
 AUTHOR = "Alex Stapleton"
-REQUIRES_PYTHON = ">=3.6.0"
-VERSION = None
+REQUIRES_PYTHON = ">=3.7.0"
 
 REQUIRED = ["grpcio", "requests"]
 
@@ -30,21 +29,12 @@ TESTS_REQUIRED = [
 
 EXTRAS = {"tests": TESTS_REQUIRED}
 
-# Import the README and use it as the long-description.
-# Note: this will only work if 'README.md' is present in your MANIFEST.in file!
-try:
-    with io.open(os.path.join(base_dir, "README.md"), encoding="utf-8") as f:
-        long_description = "\n" + f.read()
-except FileNotFoundError:
-    long_description = DESCRIPTION
+with io.open(os.path.join(base_dir, "README.md"), encoding="utf-8") as f:
+    long_description = "\n" + f.read()
 
-# Load the package's __version__.py module as a dictionary.
 about = {}
-if not VERSION:
-    with open(os.path.join(base_dir, NAME, "__version__.py")) as f:
-        exec(f.read(), about)
-else:
-    about["__version__"] = VERSION
+with open(os.path.join(base_dir, NAME, "__version__.py")) as f:
+    exec(f.read(), about)
 
 
 class UploadCommand(Command):
@@ -96,26 +86,18 @@ if __name__ == "__main__":
         author_email=EMAIL,
         python_requires=REQUIRES_PYTHON,
         url=URL,
-        packages=find_packages(exclude=["tests", "*.tests", "*.tests.*", "tests.*"]),
-        # If your package is a single module, use this instead of 'packages':
-        # py_modules=['mypackage'],
-        # entry_points={
-        #     'console_scripts': ['mycli=mymodule:cli'],
-        # },
+        packages=find_packages(exclude=["tests", "tests.*"]),
         install_requires=REQUIRED,
         extras_require=EXTRAS,
         tests_require=TESTS_REQUIRED,
         include_package_data=True,
-        license="MIT",
+        license="Apache License, Version 2.0",
         classifiers=[
-            # Trove classifiers
-            # Full list: https://pypi.python.org/pypi?%3Aaction=list_classifiers
-            "License :: OSI Approved :: MIT License",
+            "License :: OSI Approved :: Apache Software License",
             "Programming Language :: Python",
             "Programming Language :: Python :: 3",
             "Programming Language :: Python :: 3.7",
             "Programming Language :: Python :: Implementation :: CPython",
         ],
-        # $ setup.py publish support.
         cmdclass={"upload": UploadCommand},
     )

@@ -4,6 +4,7 @@ workflows:
   test:
     jobs:
       - test-py37
+      - test-py38
       - black-py37
       - interop-chrome-wsgi
       - interop-chrome-asgi
@@ -15,6 +16,13 @@ jobs:
       - checkout
       - run: sudo pip install tox
       - run: tox -e py37
+  test-py38:
+    docker:
+      - image: circleci/python:3.8
+    steps:
+      - checkout
+      - run: sudo pip install tox
+      - run: tox -e py38
   black-py37:
     docker:
       - image: circleci/python:3.7
