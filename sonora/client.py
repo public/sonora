@@ -1,4 +1,4 @@
-from urllib.parse import urljoin, unquote
+from urllib.parse import urljoin
 
 import grpc
 import requests
@@ -8,28 +8,6 @@ from sonora import protocol
 
 def insecure_web_channel(url):
     return WebChannel(url)
-
-
-def _iter_resp(resp):
-    trailer_message = None
-
-    for trailers, _, message in protocol.unwrap_message_stream(resp.raw):
-        if trailers:
-            trailer_message = message
-            break
-        else:
-            yield message
-
-    if trailer_message:
-        metadata = dict(protocol.unpack_trailers(trailer_message))
-    else:
-        metadata = resp.headers
-
-    if "grpc-message" in metadata:
-        metadata["grpc-message"] = unquote(metadata["grpc-message"])
-
-    if metadata["grpc-status"] != "0":
-        raise WebRpcError.from_metadata(metadata)
 
 
 class WebChannel:
@@ -44,12 +22,12 @@ class WebChannel:
         self._session.close()
 
     def unary_unary(self, path, request_serializer, response_deserializer):
-        return UnaryUnary(
+        return UnaryUnaryMulticallable(
             self._session, self._url, path, request_serializer, response_deserializer
         )
 
     def unary_stream(self, path, request_serializer, response_deserializer):
-        return UnaryStream(
+        return UnaryStreamMulticallable(
             self._session, self._url, path, request_serializer, response_deserializer
         )
 
@@ -60,7 +38,7 @@ class WebChannel:
         raise NotImplementedError()
 
 
-class UnaryUnary:
+class Multicallable:
     def __init__(self, session, url, path, request_serializer, request_deserializer):
         self._session = session
         self._url = url
@@ -71,6 +49,8 @@ class UnaryUnary:
     def future(self, request):
         raise NotImplementedError()
 
+
+class UnaryUnaryMulticallable(Multicallable):
     def __call__(self, request, timeout=None):
         url = urljoin(self._url, self._path)
 
@@ -80,65 +60,56 @@ class UnaryUnary:
             url,
             data=protocol.wrap_message(False, False, self._serializer(request)),
             headers=headers,
-            timeout=timeout,
-            stream=True,
+            timeout=timeout
         ) as resp:
-            messages = list(_iter_resp(resp))
-            return self._deserializer(messages[0])
+            return UnaryUnaryCall(resp, self._deserializer)()
 
 
-class UnaryStream:
-    def __init__(self, session, url, path, request_serializer, request_deserializer):
-        self._session = session
-        self._url = url
-        self._path = path
-        self._serializer = request_serializer
-        self._deserializer = request_deserializer
-
-    def future(self, request):
-        raise NotImplementedError()
-
+class UnaryStreamMulticallable(Multicallable):
     def __call__(self, request, timeout=None):
         url = urljoin(self._url, self._path)
 
         headers = {"x-user-agent": "grpc-web-python/0.1"}
 
-        with self._session.post(
+        resp = self._session.post(
             url,
             data=protocol.wrap_message(False, False, self._serializer(request)),
             headers=headers,
             timeout=timeout,
             stream=True,
-        ) as resp:
-            for message in _iter_resp(resp):
+        )
+        
+        return UnaryStreamCall(resp, self._deserializer)
+
+
+class Call:
+    def __init__(self, response, deserializer):
+        self._response = response
+        self._deserializer = deserializer
+
+        protocol.raise_for_status(self._response.headers)
+
+
+
+class UnaryUnaryCall(Call):
+    def __call__(self):
+        protocol.raise_for_status(self._response.headers)
+        trailers, _, message = protocol.unrwap_message(self._response.content)
+        assert not trailers
+        return self._deserializer(message)
+
+
+class UnaryStreamCall(Call):
+    def __iter__(self):
+        trailer_message = None
+
+        for trailers, _, message in protocol.unwrap_message_stream(self._response.raw):
+            if trailers:
+                trailer_message = message
+                break
+            else:
                 yield self._deserializer(message)
 
+        self._response.close()
 
-class WebRpcError(grpc.RpcError):
-    _code_to_enum = {code.value[0]: code for code in grpc.StatusCode}
-
-    def __init__(self, code, details, *args, **kwargs):
-        super(WebRpcError, self).__init__(*args, **kwargs)
-
-        self._code = code
-        self._details = details
-
-    @classmethod
-    def from_metadata(cls, trailers):
-        status = int(trailers["grpc-status"])
-        details = trailers.get("grpc-message")
-
-        code = cls._code_to_enum[status]
-
-        return cls(code, details)
-
-    def __str__(self):
-        return "WebRpcError(status_code={}, details='{}')".format(
-            self._code, self._details
-        )
-
-    def code(self):
-        return self._code
-
-    def details(self):
-        return self._details
+        protocol.raise_for_status(self._response.headers, trailer_message)

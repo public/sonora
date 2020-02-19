@@ -6,7 +6,7 @@ import asyncio
 import grpc.experimental.aio
 
 from sonora import protocol
-from sonora.client import WebRpcError
+from sonora.client import Multicallable
 
 
 def insecure_web_channel(url):
@@ -28,12 +28,12 @@ class WebChannel:
         yield self
 
     def unary_unary(self, path, request_serializer, response_deserializer):
-        return UnaryUnary(
+        return UnaryUnaryMulticallable(
             self._session, self._url, path, request_serializer, response_deserializer
         )
 
     def unary_stream(self, path, request_serializer, response_deserializer):
-        return UnaryStream(
+        return UnaryStreamMulticallable(
             self._session, self._url, path, request_serializer, response_deserializer
         )
 
@@ -44,17 +44,7 @@ class WebChannel:
         raise NotImplementedError()
 
 
-class UnaryUnary:
-    def __init__(self, session, url, path, request_serializer, request_deserializer):
-        self._session = session
-        self._url = url
-        self._path = path
-        self._serializer = request_serializer
-        self._deserializer = request_deserializer
-
-    def future(self, request):
-        raise NotImplementedError()
-
+class UnaryUnaryMulticallable(Multicallable):
     def __call__(self, request, timeout=None):
         url = urljoin(self._url, self._path)
 
@@ -70,17 +60,7 @@ class UnaryUnary:
         return UnaryUnaryCall(request, self._deserializer)
 
 
-class UnaryStream:
-    def __init__(self, session, url, path, request_serializer, request_deserializer):
-        self._session = session
-        self._url = url
-        self._path = path
-        self._serializer = request_serializer
-        self._deserializer = request_deserializer
-
-    def future(self, request):
-        raise NotImplementedError()
-
+class UnaryStreamMulticallable(Multicallable):
     def __call__(self, request, timeout=None):
         url = urljoin(self._url, self._path)
 
@@ -100,9 +80,7 @@ class Call:
     def __init__(self, request, deserializer):
         self._request = request
         self._deserializer = deserializer
-        
         self._response = None
-        self._iter = None
 
     def __enter__(self):
         return self
@@ -111,66 +89,66 @@ class Call:
         if self._response:
             self._response.release()
 
+    async def _get_response(self):
+        if self._response is None:
+            self._response = await self._request
+
+            protocol.raise_for_status(self._response.headers)
+
+        return self._response
+
 
 class UnaryUnaryCall(Call):
     def __await__(self):
-        if self._response is None:
-            self._response = yield from self._request.__await__()
-            self._iter = _iter_resp(self._response)
+        response = yield from self._get_response().__await__()
 
-        message = yield from self._iter.__anext__().__await__()
+        data = yield from response.read().__await__()
 
         try:
-            trailers = yield from self._iter.__anext__().__await__()
-        except StopAsyncIteration:
-            return self._deserializer(message)
-        else:
-            raise ValueError("Failed to consume entire response stream for UnaryUnary!?")
+            if data:
+                trailers, _, message = protocol.unrwap_message(data)
+
+                if trailers:
+                    raise NotImplementedError(
+                        "Trailers are not supported for UnaryUnary RPCs"
+                    )
+
+                return self._deserializer(message)
+        finally:
+            protocol.raise_for_status(response.headers)
 
 
 class UnaryStreamCall(Call):
     async def read(self):
-        if self._response is None:
-            self._response = await self._request
-            self._iter = _iter_resp(self._response)
+        response = await self._get_response()
 
-        try:
-            return self._deserializer(await self._iter.__anext__())
-        except StopAsyncIteration:
-            return grpc.experimental.aio.EOF
-            
+        trailer_message = None
 
-    async def __aiter__(self):
-        if self._response is None:
-            self._response = await self._request
-            self._iter = _iter_resp(self._response)
-
-        async for message in self._iter:
-            yield self._deserializer(message)
-
-
-async def _iter_resp(resp):
-    trailer_message = None
-
-    try:
         async for trailers, _, message in protocol.unwrap_message_stream_async(
-            resp.content
+            response.content
         ):
             if trailers:
                 trailer_message = message
                 break
             else:
-                yield message
-    except asyncio.IncompleteReadError:
-        pass
+                return self._deserializer(message)
 
-    if trailer_message:
-        metadata = dict(protocol.unpack_trailers(trailer_message))
-    else:
-        metadata = resp.headers.copy()
+        protocol.raise_for_status(response.headers, trailer_message)
 
-    if "grpc-message" in metadata:
-        metadata["grpc-message"] = unquote(metadata["grpc-message"])
+        return grpc.experimental.aio.EOF
 
-    if metadata["grpc-status"] != "0":
-        raise WebRpcError.from_metadata(metadata)
+    async def __aiter__(self):
+        response = await self._get_response()
+
+        trailer_message = None
+
+        async for trailers, _, message in protocol.unwrap_message_stream_async(
+            response.content
+        ):
+            if trailers:
+                trailer_message = message
+                break
+            else:
+                yield self._deserializer(message)
+
+        protocol.raise_for_status(response.headers, trailer_message)

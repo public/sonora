@@ -1,4 +1,5 @@
 import struct
+from urllib.parse import unquote
 
 import grpc
 
@@ -135,3 +136,48 @@ def grpc_status_to_http_status(code):
         return 403
     else:
         return 500
+
+
+class WebRpcError(grpc.RpcError):
+    _code_to_enum = {code.value[0]: code for code in grpc.StatusCode}
+
+    def __init__(self, code, details, *args, **kwargs):
+        super(WebRpcError, self).__init__(*args, **kwargs)
+
+        self._code = code
+        self._details = details
+
+    @classmethod
+    def from_metadata(cls, trailers):
+        status = int(trailers["grpc-status"])
+        details = trailers.get("grpc-message")
+
+        code = cls._code_to_enum[status]
+
+        return cls(code, details)
+
+    def __str__(self):
+        return "WebRpcError(status_code={}, details='{}')".format(
+            self._code, self._details
+        )
+
+    def code(self):
+        return self._code
+
+    def details(self):
+        return self._details
+
+
+def raise_for_status(headers, trailers=None):
+    if trailers:
+        metadata = dict(unpack_trailers(trailers))
+    else:
+        metadata = headers
+
+    if "grpc-status" in metadata and metadata["grpc-status"] != "0":
+        metadata = metadata.copy()
+        
+        if "grpc-message" in metadata:
+            metadata["grpc-message"] = unquote(metadata["grpc-message"])
+
+        raise WebRpcError.from_metadata(metadata)
