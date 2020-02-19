@@ -122,7 +122,7 @@ async def test_helloworld_sayhello_async(grpc_server):
 
 
 @pytest.mark.asyncio
-async def test_helloworld_sayhelloslowly_async(grpc_server):
+async def test_helloworld_sayhelloslowly_async_iter(grpc_server):
     async with sonora.aio.insecure_web_channel(
         f"http://localhost:{grpc_server}"
     ) as channel:
@@ -132,6 +132,29 @@ async def test_helloworld_sayhelloslowly_async(grpc_server):
             request = helloworld_pb2.HelloRequest(name=name)
             response = stub.SayHelloSlowly(request)
             message = "".join([r.message async for r in response])
+            assert message == FORMAT_STRING.format(request=request)
+
+
+@pytest.mark.asyncio
+async def test_helloworld_sayhelloslowly_async_with(grpc_server):
+    async with sonora.aio.insecure_web_channel(
+        f"http://localhost:{grpc_server}"
+    ) as channel:
+        stub = helloworld_pb2_grpc.GreeterStub(channel)
+
+        for name in ("you", "world"):
+            buffer = []
+
+            request = helloworld_pb2.HelloRequest(name=name)
+
+            with stub.SayHelloSlowly(request) as call:
+                response = await call.read()
+ 
+                while response:
+                    buffer.append(response.message)
+                    response = await call.read()
+
+            message = "".join(buffer)
             assert message == FORMAT_STRING.format(request=request)
 
 
