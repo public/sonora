@@ -149,7 +149,7 @@ async def test_helloworld_sayhelloslowly_async_with(grpc_server):
 
             with stub.SayHelloSlowly(request) as call:
                 response = await call.read()
- 
+
                 while response:
                     buffer.append(response.message)
                     response = await call.read()

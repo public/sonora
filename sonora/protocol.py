@@ -176,7 +176,7 @@ def raise_for_status(headers, trailers=None):
 
     if "grpc-status" in metadata and metadata["grpc-status"] != "0":
         metadata = metadata.copy()
-        
+
         if "grpc-message" in metadata:
             metadata["grpc-message"] = unquote(metadata["grpc-message"])
 

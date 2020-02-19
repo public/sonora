@@ -41,7 +41,7 @@ class WebChannel:
 class Multicallable:
     def __init__(self, session, url, path, request_serializer, request_deserializer):
         self._session = session
-        
+
         self._url = url
         self._path = path
         self._rpc_url = urljoin(url, path)
@@ -61,7 +61,7 @@ class UnaryUnaryMulticallable(Multicallable):
             self._rpc_url,
             data=protocol.wrap_message(False, False, self._serializer(request)),
             headers=self._headers,
-            timeout=timeout
+            timeout=timeout,
         ) as resp:
             return UnaryUnaryCall(resp, self._deserializer)()
 
@@ -75,7 +75,7 @@ class UnaryStreamMulticallable(Multicallable):
             timeout=timeout,
             stream=True,
         )
-        
+
         return UnaryStreamCall(resp, self._deserializer)
 
 
@@ -85,7 +85,6 @@ class Call:
         self._deserializer = deserializer
 
         protocol.raise_for_status(self._response.headers)
-
 
 
 class UnaryUnaryCall(Call):
