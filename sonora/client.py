@@ -41,8 +41,13 @@ class WebChannel:
 class Multicallable:
     def __init__(self, session, url, path, request_serializer, request_deserializer):
         self._session = session
+        
         self._url = url
         self._path = path
+        self._rpc_url = urljoin(url, path)
+
+        self._headers = {"x-user-agent": "grpc-web-python/0.1"}
+
         self._serializer = request_serializer
         self._deserializer = request_deserializer
 
@@ -52,14 +57,10 @@ class Multicallable:
 
 class UnaryUnaryMulticallable(Multicallable):
     def __call__(self, request, timeout=None):
-        url = urljoin(self._url, self._path)
-
-        headers = {"x-user-agent": "grpc-web-python/0.1"}
-
         with self._session.post(
-            url,
+            self._rpc_url,
             data=protocol.wrap_message(False, False, self._serializer(request)),
-            headers=headers,
+            headers=self._headers,
             timeout=timeout
         ) as resp:
             return UnaryUnaryCall(resp, self._deserializer)()
@@ -67,14 +68,10 @@ class UnaryUnaryMulticallable(Multicallable):
 
 class UnaryStreamMulticallable(Multicallable):
     def __call__(self, request, timeout=None):
-        url = urljoin(self._url, self._path)
-
-        headers = {"x-user-agent": "grpc-web-python/0.1"}
-
         resp = self._session.post(
-            url,
+            self._rpc_url,
             data=protocol.wrap_message(False, False, self._serializer(request)),
-            headers=headers,
+            headers=self._headers,
             timeout=timeout,
             stream=True,
         )
