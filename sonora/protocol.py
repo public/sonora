@@ -54,6 +54,21 @@ def unwrap_message_stream(stream):
         data = stream.read(_HEADER_LENGTH)
 
 
+async def unwrap_message_stream_async(stream):
+    data = await stream.readexactly(_HEADER_LENGTH)
+
+    while data:
+        flags, length = struct.unpack(_HEADER_FORMAT, data)
+        trailers, compressed = _unpack_header_flags(flags)
+
+        yield trailers, compressed, await stream.readexactly(length)
+
+        if trailers:
+            break
+
+        data = await stream.readexactly(_HEADER_LENGTH)
+
+
 async def unwrap_message_asgi(receive):
     buffer = bytearray()
     waiting = False

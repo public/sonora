@@ -4,6 +4,7 @@ import time
 
 import sonora.client
 import sonora.asgi
+import sonora.aio
 
 from daphne.cli import ASGI3Middleware
 import daphne.server
@@ -102,6 +103,47 @@ def test_helloworld_abort(grpc_server):
 
         with pytest.raises(grpc.RpcError) as exc:
             stub.Abort(Empty())
+
+        assert exc.value.code() == grpc.StatusCode.ABORTED
+        assert exc.value.details() == "test aborting"
+
+
+@pytest.mark.asyncio
+async def test_helloworld_sayhello_async(grpc_server):
+    async with sonora.aio.insecure_web_channel(
+        f"http://localhost:{grpc_server}"
+    ) as channel:
+        stub = helloworld_pb2_grpc.GreeterStub(channel)
+
+        for name in ("you", "world"):
+            request = helloworld_pb2.HelloRequest(name=name)
+            response = await stub.SayHello(request)
+            assert response.message == FORMAT_STRING.format(request=request)
+
+
+@pytest.mark.asyncio
+async def test_helloworld_sayhelloslowly_async(grpc_server):
+    async with sonora.aio.insecure_web_channel(
+        f"http://localhost:{grpc_server}"
+    ) as channel:
+        stub = helloworld_pb2_grpc.GreeterStub(channel)
+
+        for name in ("you", "world"):
+            request = helloworld_pb2.HelloRequest(name=name)
+            response = stub.SayHelloSlowly(request)
+            message = "".join([r.message async for r in response])
+            assert message == FORMAT_STRING.format(request=request)
+
+
+@pytest.mark.asyncio
+async def test_helloworld_abort_async(grpc_server):
+    async with sonora.aio.insecure_web_channel(
+        f"http://localhost:{grpc_server}"
+    ) as channel:
+        stub = helloworld_pb2_grpc.GreeterStub(channel)
+
+        with pytest.raises(grpc.RpcError) as exc:
+            await stub.Abort(Empty())
 
         assert exc.value.code() == grpc.StatusCode.ABORTED
         assert exc.value.details() == "test aborting"

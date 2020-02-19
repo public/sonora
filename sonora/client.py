@@ -1,4 +1,3 @@
-import os
 from urllib.parse import urljoin, unquote
 
 import grpc
