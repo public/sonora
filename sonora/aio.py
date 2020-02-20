@@ -6,7 +6,7 @@ import asyncio
 import grpc.experimental.aio
 
 from sonora import protocol
-from sonora.client import Multicallable
+import sonora.client
 
 
 def insecure_web_channel(url):
@@ -44,36 +44,33 @@ class WebChannel:
         raise NotImplementedError()
 
 
-class UnaryUnaryMulticallable(Multicallable):
+class UnaryUnaryMulticallable(sonora.client.Multicallable):
     def __call__(self, request, timeout=None):
-        request = self._session.post(
+        return UnaryUnaryCall(
+            request,
+            timeout,
+            self._headers,
             self._rpc_url,
-            data=protocol.wrap_message(False, False, self._serializer(request)),
-            headers=self._headers,
-            timeout=timeout,
+            self._session,
+            self._serializer,
+            self._deserializer,
         )
 
-        return UnaryUnaryCall(request, self._deserializer)
 
-
-class UnaryStreamMulticallable(Multicallable):
+class UnaryStreamMulticallable(sonora.client.Multicallable):
     def __call__(self, request, timeout=None):
-        request = self._session.post(
+        return UnaryStreamCall(
+            request,
+            timeout,
+            self._headers,
             self._rpc_url,
-            data=protocol.wrap_message(False, False, self._serializer(request)),
-            headers=self._headers,
-            timeout=timeout,
+            self._session,
+            self._serializer,
+            self._deserializer,
         )
 
-        return UnaryStreamCall(request, self._deserializer)
 
-
-class Call:
-    def __init__(self, request, deserializer):
-        self._request = request
-        self._deserializer = deserializer
-        self._response = None
-
+class Call(sonora.client.Call):
     def __enter__(self):
         return self
 
@@ -83,7 +80,12 @@ class Call:
 
     async def _get_response(self):
         if self._response is None:
-            self._response = await self._request
+            self._response = await self._session.post(
+                self._url,
+                data=protocol.wrap_message(False, False, self._serializer(self._request)),
+                headers=self._metadata,
+                timeout=self._timeout,
+            )
 
             protocol.raise_for_status(self._response.headers)
 
@@ -94,20 +96,19 @@ class UnaryUnaryCall(Call):
     def __await__(self):
         response = yield from self._get_response().__await__()
 
+        protocol.raise_for_status(response.headers)
+
         data = yield from response.read().__await__()
 
-        try:
-            if data:
-                trailers, _, message = protocol.unrwap_message(data)
+        if data:
+            trailers, _, message = protocol.unrwap_message(data)
 
-                if trailers:
-                    raise NotImplementedError(
-                        "Trailers are not supported for UnaryUnary RPCs"
-                    )
+            if trailers:
+                raise NotImplementedError(
+                    "Trailers are not supported for UnaryUnary RPCs"
+                )
 
-                return self._deserializer(message)
-        finally:
-            protocol.raise_for_status(response.headers)
+            return self._deserializer(message)
 
 
 class UnaryStreamCall(Call):

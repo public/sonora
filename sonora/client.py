@@ -57,55 +57,75 @@ class Multicallable:
 
 class UnaryUnaryMulticallable(Multicallable):
     def __call__(self, request, timeout=None):
-        with self._session.post(
+        return UnaryUnaryCall(
+            request,
+            timeout,
+            self._headers,
             self._rpc_url,
-            data=protocol.wrap_message(False, False, self._serializer(request)),
-            headers=self._headers,
-            timeout=timeout,
-        ) as resp:
-            return UnaryUnaryCall(resp, self._deserializer)()
+            self._session,
+            self._serializer,
+            self._deserializer,
+        )()
 
 
 class UnaryStreamMulticallable(Multicallable):
     def __call__(self, request, timeout=None):
-        resp = self._session.post(
+        return UnaryStreamCall(
+            request,
+            timeout,
+            self._headers,
             self._rpc_url,
-            data=protocol.wrap_message(False, False, self._serializer(request)),
-            headers=self._headers,
-            timeout=timeout,
-            stream=True,
+            self._session,
+            self._serializer,
+            self._deserializer,
         )
-
-        return UnaryStreamCall(resp, self._deserializer)
 
 
 class Call:
-    def __init__(self, response, deserializer):
-        self._response = response
+    def __init__(
+        self, request, timeout, metadata, url, session, serializer, deserializer
+    ):
+        self._request = request
+        self._timeout = timeout
+        self._metadata = metadata
+        self._url = url
+        self._session = session
+        self._serializer = serializer
         self._deserializer = deserializer
-
-        protocol.raise_for_status(self._response.headers)
+        self._response = None
 
 
 class UnaryUnaryCall(Call):
     def __call__(self):
-        protocol.raise_for_status(self._response.headers)
-        trailers, _, message = protocol.unrwap_message(self._response.content)
-        assert not trailers
-        return self._deserializer(message)
+        with self._session.post(
+            self._url,
+            data=protocol.wrap_message(False, False, self._serializer(self._request)),
+            headers=self._metadata,
+            timeout=self._timeout,
+        ) as self._response:
+            protocol.raise_for_status(self._response.headers)
+            trailers, _, message = protocol.unrwap_message(self._response.content)
+            assert not trailers
+            return self._deserializer(message)
 
 
 class UnaryStreamCall(Call):
     def __iter__(self):
-        trailer_message = None
+        with self._session.post(
+            self._url,
+            data=protocol.wrap_message(False, False, self._serializer(self._request)),
+            headers=self._metadata,
+            timeout=self._timeout,
+            stream=True,
+        ) as self._response:
+            for trailers, _, message in protocol.unwrap_message_stream(
+                self._response.raw
+            ):
+                if trailers:
+                    break
+                else:
+                    yield self._deserializer(message)
 
-        for trailers, _, message in protocol.unwrap_message_stream(self._response.raw):
-            if trailers:
-                trailer_message = message
-                break
-            else:
-                yield self._deserializer(message)
-
-        self._response.close()
-
-        protocol.raise_for_status(self._response.headers, trailer_message)
+            protocol.raise_for_status(
+                self._response.headers, message if trailers else None
+            )
