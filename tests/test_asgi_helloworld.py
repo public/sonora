@@ -1,13 +1,11 @@
 import multiprocessing
 import os
+import socket
 import time
 
 import sonora.client
 import sonora.asgi
 import sonora.aio
-
-from daphne.cli import ASGI3Middleware
-import daphne.server
 
 import grpc
 from google.protobuf.empty_pb2 import Empty
@@ -49,6 +47,23 @@ def _server(lock, port):
     os.system(f"daphne -p{port} tests.test_asgi_helloworld:application")
 
 
+def _wait_for_server(port, timeout=5):
+    start = time.time()
+
+    while time.time() - start < timeout:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            sock.connect(("127.0.0.1", int(port)))
+        except ConnectionRefusedError:
+            continue
+        else:
+            sock.shutdown(socket.SHUT_RDWR)
+            sock.close()
+            return
+
+    raise ConnectionRefusedError("Unable to connect to test server. Did it start OK?")
+
+
 @pytest.fixture(scope="function")
 def grpc_server(capsys, unused_port_factory):
     lock = multiprocessing.Lock()
@@ -64,8 +79,11 @@ def grpc_server(capsys, unused_port_factory):
         server_proc.start()
 
     lock.acquire()
-    time.sleep(1)
+
+    _wait_for_server(port)
+
     yield port
+
     server_proc.kill()
     server_proc.join()
 
