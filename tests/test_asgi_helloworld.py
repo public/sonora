@@ -49,7 +49,9 @@ application = _asgi_application()
 
 def _server(lock, port):
     lock.release()
-    os.system(f"daphne -p{port} tests.test_asgi_helloworld:application")
+    os.execvp(
+        "daphne", ["daphne", f"-p{port}", "tests.test_asgi_helloworld:application"]
+    )
 
 
 def _wait_for_server(port, timeout=5):
