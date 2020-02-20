@@ -1,6 +1,5 @@
 from urllib.parse import urljoin
 
-import grpc
 import requests
 
 from sonora import protocol
