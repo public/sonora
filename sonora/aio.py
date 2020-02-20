@@ -114,33 +114,27 @@ class UnaryStreamCall(Call):
     async def read(self):
         response = await self._get_response()
 
-        trailer_message = None
-
         async for trailers, _, message in protocol.unwrap_message_stream_async(
             response.content
         ):
             if trailers:
-                trailer_message = message
                 break
             else:
                 return self._deserializer(message)
 
-        protocol.raise_for_status(response.headers, trailer_message)
+        protocol.raise_for_status(response.headers, message if trailers else None)
 
         return grpc.experimental.aio.EOF
 
     async def __aiter__(self):
         response = await self._get_response()
 
-        trailer_message = None
-
         async for trailers, _, message in protocol.unwrap_message_stream_async(
             response.content
         ):
             if trailers:
-                trailer_message = message
                 break
             else:
                 yield self._deserializer(message)
 
-        protocol.raise_for_status(response.headers, trailer_message)
+        protocol.raise_for_status(response.headers, message if trailers else None)
