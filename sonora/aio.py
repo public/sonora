@@ -1,5 +1,6 @@
-import aiohttp
+import asyncio
 
+import aiohttp
 import grpc.experimental.aio
 
 from sonora import protocol
@@ -77,11 +78,15 @@ class Call(sonora.client.Call):
 
     async def _get_response(self):
         if self._response is None:
+            timeout = aiohttp.ClientTimeout(total=self._timeout)
+
             self._response = await self._session.post(
                 self._url,
-                data=protocol.wrap_message(False, False, self._serializer(self._request)),
+                data=protocol.wrap_message(
+                    False, False, self._serializer(self._request)
+                ),
                 headers=self._metadata,
-                timeout=self._timeout,
+                timeout=timeout,
             )
 
             protocol.raise_for_status(self._response.headers)
@@ -91,48 +96,63 @@ class Call(sonora.client.Call):
 
 class UnaryUnaryCall(Call):
     def __await__(self):
-        response = yield from self._get_response().__await__()
+        try:
+            response = yield from self._get_response().__await__()
 
-        protocol.raise_for_status(response.headers)
+            protocol.raise_for_status(response.headers)
 
-        data = yield from response.read().__await__()
+            data = yield from response.read().__await__()
 
-        if data:
-            trailers, _, message = protocol.unrwap_message(data)
+            if data:
+                trailers, _, message = protocol.unrwap_message(data)
 
-            if trailers:
-                raise NotImplementedError(
-                    "Trailers are not supported for UnaryUnary RPCs"
-                )
+                if trailers:
+                    raise NotImplementedError(
+                        "Trailers are not supported for UnaryUnary RPCs"
+                    )
 
-            return self._deserializer(message)
+                return self._deserializer(message)
+        except asyncio.TimeoutError:
+            raise protocol.WebRpcError(
+                grpc.StatusCode.DEADLINE_EXCEEDED, f"exceeded {self._timeout}s timeout"
+            )
 
 
 class UnaryStreamCall(Call):
     async def read(self):
-        response = await self._get_response()
+        try:
+            response = await self._get_response()
 
-        async for trailers, _, message in protocol.unwrap_message_stream_async(
-            response.content
-        ):
-            if trailers:
-                break
-            else:
-                return self._deserializer(message)
+            async for trailers, _, message in protocol.unwrap_message_stream_async(
+                response.content
+            ):
+                if trailers:
+                    break
+                else:
+                    return self._deserializer(message)
 
-        protocol.raise_for_status(response.headers, message if trailers else None)
+            protocol.raise_for_status(response.headers, message if trailers else None)
 
-        return grpc.experimental.aio.EOF
+            return grpc.experimental.aio.EOF
+        except asyncio.TimeoutError:
+            raise protocol.WebRpcError(
+                grpc.StatusCode.DEADLINE_EXCEEDED, f"exceeded {self._timeout}s timeout"
+            )
 
     async def __aiter__(self):
-        response = await self._get_response()
+        try:
+            response = await self._get_response()
 
-        async for trailers, _, message in protocol.unwrap_message_stream_async(
-            response.content
-        ):
-            if trailers:
-                break
-            else:
-                yield self._deserializer(message)
+            async for trailers, _, message in protocol.unwrap_message_stream_async(
+                response.content
+            ):
+                if trailers:
+                    break
+                else:
+                    yield self._deserializer(message)
 
-        protocol.raise_for_status(response.headers, message if trailers else None)
+            protocol.raise_for_status(response.headers, message if trailers else None)
+        except asyncio.TimeoutError:
+            raise protocol.WebRpcError(
+                grpc.StatusCode.DEADLINE_EXCEEDED, f"exceeded {self._timeout}s timeout"
+            )

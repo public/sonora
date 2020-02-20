@@ -1,5 +1,6 @@
 from urllib.parse import urljoin
 
+import grpc
 import requests
 
 from sonora import protocol
@@ -96,35 +97,49 @@ class Call:
 
 class UnaryUnaryCall(Call):
     def __call__(self):
-        with self._session.post(
-            self._url,
-            data=protocol.wrap_message(False, False, self._serializer(self._request)),
-            headers=self._metadata,
-            timeout=self._timeout,
-        ) as self._response:
-            protocol.raise_for_status(self._response.headers)
-            trailers, _, message = protocol.unrwap_message(self._response.content)
-            assert not trailers
-            return self._deserializer(message)
+        try:
+            with self._session.post(
+                self._url,
+                data=protocol.wrap_message(
+                    False, False, self._serializer(self._request)
+                ),
+                headers=self._metadata,
+                timeout=self._timeout,
+            ) as self._response:
+                protocol.raise_for_status(self._response.headers)
+                trailers, _, message = protocol.unrwap_message(self._response.content)
+                assert not trailers
+                return self._deserializer(message)
+        except requests.exceptions.Timeout:
+            raise protocol.WebRpcError(
+                grpc.StatusCode.DEADLINE_EXCEEDED, f"exceeded {self._timeout}s timeout"
+            )
 
 
 class UnaryStreamCall(Call):
     def __iter__(self):
-        with self._session.post(
-            self._url,
-            data=protocol.wrap_message(False, False, self._serializer(self._request)),
-            headers=self._metadata,
-            timeout=self._timeout,
-            stream=True,
-        ) as self._response:
-            for trailers, _, message in protocol.unwrap_message_stream(
-                self._response.raw
-            ):
-                if trailers:
-                    break
-                else:
-                    yield self._deserializer(message)
+        try:
+            with self._session.post(
+                self._url,
+                data=protocol.wrap_message(
+                    False, False, self._serializer(self._request)
+                ),
+                headers=self._metadata,
+                timeout=self._timeout,
+                stream=True,
+            ) as self._response:
+                for trailers, _, message in protocol.unwrap_message_stream(
+                    self._response.raw
+                ):
+                    if trailers:
+                        break
+                    else:
+                        yield self._deserializer(message)
 
-            protocol.raise_for_status(
-                self._response.headers, message if trailers else None
+                protocol.raise_for_status(
+                    self._response.headers, message if trailers else None
+                )
+        except requests.exceptions.Timeout:
+            raise protocol.WebRpcError(
+                grpc.StatusCode.DEADLINE_EXCEEDED, f"exceeded {self._timeout}s timeout"
             )

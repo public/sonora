@@ -3,13 +3,14 @@ import os
 import socket
 import time
 
-import sonora.client
-import sonora.asgi
-import sonora.aio
-
+import asyncio
 import grpc
 from google.protobuf.empty_pb2 import Empty
 import pytest
+
+import sonora.client
+import sonora.asgi
+import sonora.aio
 
 from tests import helloworld_pb2
 from tests import helloworld_pb2_grpc
@@ -26,7 +27,11 @@ def _asgi_application():
             )
 
         async def SayHelloSlowly(self, request, context):
+            if request.name == "timeout":
+                time.sleep(100)
+
             message = FORMAT_STRING.format(request=request)
+
             for char in message:
                 yield helloworld_pb2.HelloReply(message=char)
 
@@ -151,6 +156,22 @@ async def test_helloworld_sayhelloslowly_async_iter(grpc_server):
             response = stub.SayHelloSlowly(request)
             message = "".join([r.message async for r in response])
             assert message == FORMAT_STRING.format(request=request)
+
+
+@pytest.mark.asyncio
+async def test_helloworld_sayhelloslowly_timeout(grpc_server):
+    async with sonora.aio.insecure_web_channel(
+        f"http://localhost:{grpc_server}"
+    ) as channel:
+        stub = helloworld_pb2_grpc.GreeterStub(channel)
+
+        request = helloworld_pb2.HelloRequest(name="timeout")
+        response = stub.SayHelloSlowly(request, timeout=0.0000001)
+
+        with pytest.raises(grpc.RpcError) as exc:
+            async for r in response:
+                pass
+        assert exc.value.code() == grpc.StatusCode.DEADLINE_EXCEEDED
 
 
 @pytest.mark.asyncio
