@@ -78,9 +78,6 @@ def _asgi_application():
     return grpc_asgi_app
 
 
-asgi_application = _asgi_application()
-
-
 def _wait_for_server(port, timeout=5):
     start = time.time()
 
@@ -126,3 +123,5 @@ def _server_fixture(server):
 
 asgi_grpc_server = pytest.fixture(_server_fixture(_asgi_server))
 wsgi_grpc_server = pytest.fixture(_server_fixture(_wsgi_server))
+
+asgi_application = _asgi_application()
