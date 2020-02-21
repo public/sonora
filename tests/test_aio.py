@@ -46,7 +46,7 @@ async def test_helloworld_sayhelloslowly_with_timeout(asgi_grpc_server):
                     await call.read()
 
         assert exc.value.code() == grpc.StatusCode.DEADLINE_EXCEEDED
-        assert exc.value.details().startswith("exceeded")
+        assert exc.value.details() == "request timed out at the client"
 
 
 @pytest.mark.asyncio
@@ -60,4 +60,4 @@ async def test_helloworld_sayhello_timeout_async(asgi_grpc_server):
         with pytest.raises(grpc.RpcError) as exc:
             await stub.SayHello(request, timeout=0.0000001)
         assert exc.value.code() == grpc.StatusCode.DEADLINE_EXCEEDED
-        assert exc.value.details().startswith("exceeded")
+        assert exc.value.details() == "request timed out at the client"

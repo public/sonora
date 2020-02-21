@@ -39,7 +39,7 @@ class grpcASGI(grpc.Server):
                         await self._do_grpc_request(rpc_method, context, receive, send)
                 except asyncio.TimeoutError:
                     context.code = grpc.StatusCode.DEADLINE_EXCEEDED
-                    context.details = "rpc timed out"
+                    context.details = "request timed out at the server"
                     await self._do_grpc_error(context, send)
 
             elif request_method == "OPTIONS":

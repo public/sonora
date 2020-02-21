@@ -111,7 +111,7 @@ class Call:
                     except exc:
                         raise protocol.WebRpcError(
                             grpc.StatusCode.DEADLINE_EXCEEDED,
-                            f"exceeded {self._timeout}s timeout",
+                            "request timed out at the client",
                         )
 
             elif inspect.iscoroutinefunction(func):
@@ -122,7 +122,7 @@ class Call:
                     except exc:
                         raise protocol.WebRpcError(
                             grpc.StatusCode.DEADLINE_EXCEEDED,
-                            f"exceeded {self._timeout}s timeout",
+                            "request timed out at the client",
                         )
 
             elif inspect.isgeneratorfunction(func):
@@ -134,7 +134,7 @@ class Call:
                     except exc:
                         raise protocol.WebRpcError(
                             grpc.StatusCode.DEADLINE_EXCEEDED,
-                            f"exceeded {self._timeout}s timeout",
+                            "request timed out at the client",
                         )
 
             else:
@@ -145,7 +145,7 @@ class Call:
                     except exc:
                         raise protocol.WebRpcError(
                             grpc.StatusCode.DEADLINE_EXCEEDED,
-                            f"exceeded {self._timeout}s timeout",
+                            "request timed out at the client",
                         )
 
             return functools.wraps(func)(wrapper)
