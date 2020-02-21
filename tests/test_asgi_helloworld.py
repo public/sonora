@@ -70,10 +70,11 @@ async def test_helloworld_sayhello_timeout_async(asgi_grpc_server):
     ) as channel:
         stub = helloworld_pb2_grpc.GreeterStub(channel)
 
-        request = helloworld_pb2.HelloRequest(name="timeout")
+        request = helloworld_pb2.HelloRequest(name="server timeout")
         with pytest.raises(grpc.RpcError) as exc:
-            await stub.SayHello(request, timeout=0.0000001)
+            await stub.SayHello(request, timeout=0.1)
         assert exc.value.code() == grpc.StatusCode.DEADLINE_EXCEEDED
+        assert exc.value.details() == "request timed out at the server"
 
 
 @pytest.mark.asyncio
@@ -98,13 +99,14 @@ async def test_helloworld_sayhelloslowly_timeout_async(asgi_grpc_server):
     ) as channel:
         stub = helloworld_pb2_grpc.GreeterStub(channel)
 
-        request = helloworld_pb2.HelloRequest(name="timeout")
+        request = helloworld_pb2.HelloRequest(name="server timeout")
         response = stub.SayHelloSlowly(request, timeout=0.0000001)
 
         with pytest.raises(grpc.RpcError) as exc:
             async for r in response:
                 pass
         assert exc.value.code() == grpc.StatusCode.DEADLINE_EXCEEDED
+        assert exc.value.details() == "request timed out at the server"
 
 
 @pytest.mark.asyncio

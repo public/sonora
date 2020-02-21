@@ -90,10 +90,18 @@ class grpcWSGI(grpc.Server):
         else:
             return stream.read(content_length or 5)
 
+    def _create_context(self, environ):
+        try:
+            timeout = protocol.parse_timeout(environ["HTTP_GRPC_TIMEOUT"])
+        except KeyError:
+            timeout = None
+
+        return gRPCContext(timeout)
+
     def _do_grpc_request(self, rpc_method, environ, start_response):
         request_data = self._read_request(environ)
 
-        context = gRPCContext()
+        context = self._create_context(environ)
 
         _, _, message = protocol.unrwap_message(request_data)
         request_proto = rpc_method.request_deserializer(message)

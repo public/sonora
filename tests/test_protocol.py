@@ -54,3 +54,8 @@ async def test_unwrapping_asgi():
         resp_messages.append(resp)
 
     assert resp_messages == messages
+
+
+def test_parse_timeout():
+    seconds = protocol.parse_timeout(b"100n")
+    assert seconds - 0.0000001 < 0.0000001

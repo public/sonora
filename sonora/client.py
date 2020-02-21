@@ -96,6 +96,9 @@ class Call:
         self._deserializer = deserializer
         self._response = None
 
+        if timeout is not None:
+            self._metadata["grpc-timeout"] = protocol.serialize_timeout(timeout)
+
     @classmethod
     def _raise_timeout(cls, exc):
         def decorator(func):
@@ -108,7 +111,7 @@ class Call:
                     except exc:
                         raise protocol.WebRpcError(
                             grpc.StatusCode.DEADLINE_EXCEEDED,
-                            f"exceeded {self._timeout} timeout",
+                            "request timed out at the client",
                         )
 
             elif inspect.iscoroutinefunction(func):
@@ -119,7 +122,7 @@ class Call:
                     except exc:
                         raise protocol.WebRpcError(
                             grpc.StatusCode.DEADLINE_EXCEEDED,
-                            f"exceeded {self._timeout} timeout",
+                            "request timed out at the client",
                         )
 
             elif inspect.isgeneratorfunction(func):
@@ -131,7 +134,7 @@ class Call:
                     except exc:
                         raise protocol.WebRpcError(
                             grpc.StatusCode.DEADLINE_EXCEEDED,
-                            f"exceeded {self._timeout} timeout",
+                            "request timed out at the client",
                         )
 
             else:
@@ -142,7 +145,7 @@ class Call:
                     except exc:
                         raise protocol.WebRpcError(
                             grpc.StatusCode.DEADLINE_EXCEEDED,
-                            f"exceeded {self._timeout} timeout",
+                            "request timed out at the client",
                         )
 
             return functools.wraps(func)(wrapper)

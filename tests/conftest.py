@@ -53,16 +53,20 @@ def _wsgi_server(lock, port):
 def _asgi_application():
     class Greeter(helloworld_pb2_grpc.GreeterServicer):
         async def SayHello(self, request, context):
-            if request.name == "timeout":
+            if request.name == "server timeout":
                 await asyncio.sleep(100)
+            elif request.name == "client timeout":
+                time.sleep(100)
 
             return helloworld_pb2.HelloReply(
                 message=FORMAT_STRING.format(request=request)
             )
 
         async def SayHelloSlowly(self, request, context):
-            if request.name == "timeout":
+            if request.name == "server timeout":
                 await asyncio.sleep(100)
+            elif request.name == "client timeout":
+                time.sleep(100)
 
             message = FORMAT_STRING.format(request=request)
 
