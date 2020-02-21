@@ -17,6 +17,39 @@ from tests import helloworld_pb2, helloworld_pb2_grpc
 FORMAT_STRING = "Hello, {request.name}!"
 
 
+def _asgi_server(lock, port):
+    lock.release()
+    os.execvp("daphne", ["daphne", f"-p{port}", "tests.conftest:asgi_application"])
+
+
+def _wsgi_server(lock, port):
+    class Greeter(helloworld_pb2_grpc.GreeterServicer):
+        def SayHello(self, request, context):
+            if request.name == "timeout":
+                time.sleep(100)
+            return helloworld_pb2.HelloReply(
+                message=FORMAT_STRING.format(request=request)
+            )
+
+        def SayHelloSlowly(self, request, context):
+            if request.name == "timeout":
+                time.sleep(100)
+
+            message = FORMAT_STRING.format(request=request)
+            for char in message:
+                yield helloworld_pb2.HelloReply(message=char)
+
+        def Abort(self, request, context):
+            context.abort(grpc.StatusCode.ABORTED, "test aborting")
+
+    grpc_wsgi_app = sonora.wsgi.grpcWSGI(None)
+
+    with make_server("127.0.0.1", port, grpc_wsgi_app) as httpd:
+        helloworld_pb2_grpc.add_GreeterServicer_to_server(Greeter(), grpc_wsgi_app)
+        lock.release()
+        httpd.serve_forever()
+
+
 def _asgi_application():
     class Greeter(helloworld_pb2_grpc.GreeterServicer):
         async def SayHello(self, request, context):
@@ -48,11 +81,6 @@ def _asgi_application():
 asgi_application = _asgi_application()
 
 
-def _asgi_server(lock, port):
-    lock.release()
-    os.execvp("daphne", ["daphne", f"-p{port}", "tests.conftest:asgi_application"])
-
-
 def _wait_for_server(port, timeout=5):
     start = time.time()
 
@@ -70,75 +98,31 @@ def _wait_for_server(port, timeout=5):
     raise ConnectionRefusedError("Unable to connect to test server. Did it start OK?")
 
 
-@pytest.fixture
-def asgi_grpc_server(capsys, unused_port_factory):
-    lock = multiprocessing.Lock()
-    lock.acquire()
+def _server_fixture(server):
+    def fixture(capsys, unused_port_factory):
+        lock = multiprocessing.Lock()
+        lock.acquire()
 
-    port = unused_port_factory()
+        port = unused_port_factory()
 
-    print("Starting server at", port)
+        print("Starting server at", port)
 
-    with capsys.disabled():
-        server_proc = multiprocessing.Process(target=_asgi_server, args=(lock, port))
-        server_proc.daemon = True
-        server_proc.start()
+        with capsys.disabled():
+            server_proc = multiprocessing.Process(target=server, args=(lock, port))
+            server_proc.daemon = True
+            server_proc.start()
 
-    lock.acquire()
+        lock.acquire()
 
-    _wait_for_server(port)
+        _wait_for_server(port)
 
-    yield port
+        yield port
 
-    server_proc.kill()
-    server_proc.join()
+        server_proc.kill()
+        server_proc.join()
 
-
-def _wsgi_server(lock, port):
-    class Greeter(helloworld_pb2_grpc.GreeterServicer):
-        def SayHello(self, request, context):
-            if request.name == "timeout":
-                time.sleep(100)
-            return helloworld_pb2.HelloReply(
-                message=FORMAT_STRING.format(request=request)
-            )
-
-        def SayHelloSlowly(self, request, context):
-            if request.name == "timeout":
-                time.sleep(100)
-
-            message = FORMAT_STRING.format(request=request)
-            for char in message:
-                yield helloworld_pb2.HelloReply(message=char)
-
-        def Abort(self, request, context):
-            context.abort(grpc.StatusCode.ABORTED, "test aborting")
-
-    grpc_wsgi_app = sonora.wsgi.grpcWSGI(None)
-
-    with make_server("127.0.0.1", port, grpc_wsgi_app) as httpd:
-        helloworld_pb2_grpc.add_GreeterServicer_to_server(Greeter(), grpc_wsgi_app)
-        lock.release()
-        httpd.serve_forever()
+    return fixture
 
 
-@pytest.fixture
-def wsgi_grpc_server(capsys, unused_port_factory):
-    lock = multiprocessing.Lock()
-    lock.acquire()
-
-    port = unused_port_factory()
-
-    with capsys.disabled():
-        server_proc = multiprocessing.Process(target=_wsgi_server, args=(lock, port))
-        server_proc.daemon = True
-        server_proc.start()
-
-    lock.acquire()
-
-    _wait_for_server(port)
-
-    yield port
-
-    server_proc.kill()
-    server_proc.join()
+asgi_grpc_server = pytest.fixture(_server_fixture(_asgi_server))
+wsgi_grpc_server = pytest.fixture(_server_fixture(_wsgi_server))
