@@ -71,7 +71,7 @@ class grpcASGI(grpc.Server):
     def _create_context(self, scope):
         timeout = None
 
-        for header, value in scope['headers']:
+        for header, value in scope["headers"]:
             if header == b"grpc-timeout":
                 timeout = protocol.parse_timeout(value)
                 break

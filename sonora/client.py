@@ -97,7 +97,7 @@ class Call:
         self._response = None
 
         if timeout is not None:
-            self._metadata['grpc-timeout'] = protocol.serialize_timeout(timeout)
+            self._metadata["grpc-timeout"] = protocol.serialize_timeout(timeout)
 
     @classmethod
     def _raise_timeout(cls, exc):

@@ -76,6 +76,7 @@ async def test_helloworld_sayhello_timeout_async(asgi_grpc_server):
         assert exc.value.code() == grpc.StatusCode.DEADLINE_EXCEEDED
         assert exc.value.details() == "rpc timed out"
 
+
 @pytest.mark.asyncio
 async def test_helloworld_sayhelloslowly_async(asgi_grpc_server):
     async with sonora.aio.insecure_web_channel(
@@ -106,6 +107,7 @@ async def test_helloworld_sayhelloslowly_timeout_async(asgi_grpc_server):
                 pass
         assert exc.value.code() == grpc.StatusCode.DEADLINE_EXCEEDED
         assert exc.value.details() == "rpc timed out"
+
 
 @pytest.mark.asyncio
 async def test_helloworld_abort_async(asgi_grpc_server):
