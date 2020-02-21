@@ -106,7 +106,6 @@ def _server_fixture(server):
 
         with capsys.disabled():
             server_proc = multiprocessing.Process(target=server, args=(lock, port))
-            server_proc.daemon = True
             server_proc.start()
 
         lock.acquire()
