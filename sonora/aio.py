@@ -1,4 +1,5 @@
 import asyncio
+import functools
 
 import aiohttp
 import grpc.experimental.aio
@@ -95,64 +96,52 @@ class Call(sonora.client.Call):
 
 
 class UnaryUnaryCall(Call):
+    @Call._raise_timeout(asyncio.TimeoutError)
     def __await__(self):
-        try:
-            response = yield from self._get_response().__await__()
+        response = yield from self._get_response().__await__()
 
-            protocol.raise_for_status(response.headers)
+        protocol.raise_for_status(response.headers)
 
-            data = yield from response.read().__await__()
+        data = yield from response.read().__await__()
 
-            if data:
-                trailers, _, message = protocol.unrwap_message(data)
+        if data:
+            trailers, _, message = protocol.unrwap_message(data)
 
-                if trailers:
-                    raise NotImplementedError(
-                        "Trailers are not supported for UnaryUnary RPCs"
-                    )
+            if trailers:
+                raise NotImplementedError(
+                    "Trailers are not supported for UnaryUnary RPCs"
+                )
 
-                return self._deserializer(message)
-        except asyncio.TimeoutError:
-            raise protocol.WebRpcError(
-                grpc.StatusCode.DEADLINE_EXCEEDED, f"exceeded {self._timeout}s timeout"
-            )
+            return self._deserializer(message)
 
 
 class UnaryStreamCall(Call):
+    @Call._raise_timeout(asyncio.TimeoutError)
     async def read(self):
-        try:
-            response = await self._get_response()
+        response = await self._get_response()
 
-            async for trailers, _, message in protocol.unwrap_message_stream_async(
-                response.content
-            ):
-                if trailers:
-                    break
-                else:
-                    return self._deserializer(message)
+        async for trailers, _, message in protocol.unwrap_message_stream_async(
+            response.content
+        ):
+            if trailers:
+                break
+            else:
+                return self._deserializer(message)
 
-            protocol.raise_for_status(response.headers, message if trailers else None)
+        protocol.raise_for_status(response.headers, message if trailers else None)
 
-            return grpc.experimental.aio.EOF
-        except asyncio.TimeoutError:
-            raise protocol.WebRpcError(
-                grpc.StatusCode.DEADLINE_EXCEEDED, f"exceeded {self._timeout}s timeout"
-            )
+        return grpc.experimental.aio.EOF
 
+    @Call._raise_timeout(asyncio.TimeoutError)
     async def __aiter__(self):
-        try:
-            response = await self._get_response()
+        response = await self._get_response()
 
-            async for trailers, _, message in protocol.unwrap_message_stream_async(
-                response.content
-            ):
-                if trailers:
-                    break
-                else:
-                    yield self._deserializer(message)
+        async for trailers, _, message in protocol.unwrap_message_stream_async(
+            response.content
+        ):
+            if trailers:
+                break
+            else:
+                yield self._deserializer(message)
 
-            protocol.raise_for_status(response.headers, message if trailers else None)
-        except asyncio.TimeoutError:
-            raise protocol.WebRpcError(
-                grpc.StatusCode.DEADLINE_EXCEEDED, f"exceeded {self._timeout}s timeout"
-            )
+        protocol.raise_for_status(response.headers, message if trailers else None)
