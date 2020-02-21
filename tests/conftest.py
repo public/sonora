@@ -138,4 +138,7 @@ def wsgi_grpc_server(capsys, unused_port_factory):
 
     _wait_for_server(port)
 
-    return port
+    yield port
+
+    server_proc.kill()
+    server_proc.join()
