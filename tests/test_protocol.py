@@ -1,7 +1,6 @@
 import io
 
 import pytest
-
 from sonora import protocol
 
 

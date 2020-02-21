@@ -121,7 +121,8 @@ class Call:
             elif inspect.isgeneratorfunction(func):
                 def wrapper(self, *args, **kwargs):
                     try:
-                        yield from func(self, *args, **kwargs)
+                        result = yield from func(self, *args, **kwargs)
+                        return result
                     except exc:
                         raise protocol.WebRpcError(
                             grpc.StatusCode.DEADLINE_EXCEEDED,

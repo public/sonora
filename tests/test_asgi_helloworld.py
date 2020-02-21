@@ -1,115 +1,30 @@
-import multiprocessing
-import os
-import socket
-import time
-
-import asyncio
 import grpc
-from google.protobuf.empty_pb2 import Empty
 import pytest
 
-import sonora.client
-import sonora.asgi
 import sonora.aio
+import sonora.asgi
+import sonora.client
 
-from tests import helloworld_pb2
-from tests import helloworld_pb2_grpc
-
-
-FORMAT_STRING = "Hello, {request.name}!"
-
-
-def _asgi_application():
-    class Greeter(helloworld_pb2_grpc.GreeterServicer):
-        async def SayHello(self, request, context):
-            return helloworld_pb2.HelloReply(
-                message=FORMAT_STRING.format(request=request)
-            )
-
-        async def SayHelloSlowly(self, request, context):
-            if request.name == "timeout":
-                time.sleep(100)
-
-            message = FORMAT_STRING.format(request=request)
-
-            for char in message:
-                yield helloworld_pb2.HelloReply(message=char)
-
-        async def Abort(self, request, context):
-            context.abort(grpc.StatusCode.ABORTED, "test aborting")
-
-    grpc_asgi_app = sonora.asgi.grpcASGI()
-    helloworld_pb2_grpc.add_GreeterServicer_to_server(Greeter(), grpc_asgi_app)
-
-    return grpc_asgi_app
+from google.protobuf.empty_pb2 import Empty
+from tests import helloworld_pb2, helloworld_pb2_grpc
 
 
-application = _asgi_application()
-
-
-def _server(lock, port):
-    lock.release()
-    os.execvp(
-        "daphne", ["daphne", f"-p{port}", "tests.test_asgi_helloworld:application"]
-    )
-
-
-def _wait_for_server(port, timeout=5):
-    start = time.time()
-
-    while time.time() - start < timeout:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        try:
-            sock.connect(("127.0.0.1", int(port)))
-        except ConnectionRefusedError:
-            continue
-        else:
-            sock.shutdown(socket.SHUT_RDWR)
-            sock.close()
-            return
-
-    raise ConnectionRefusedError("Unable to connect to test server. Did it start OK?")
-
-
-@pytest.fixture(scope="function")
-def grpc_server(capsys, unused_port_factory):
-    lock = multiprocessing.Lock()
-    lock.acquire()
-
-    port = unused_port_factory()
-
-    print("Starting server at", port)
-
-    with capsys.disabled():
-        server_proc = multiprocessing.Process(target=_server, args=(lock, port))
-        server_proc.daemon = True
-        server_proc.start()
-
-    lock.acquire()
-
-    _wait_for_server(port)
-
-    yield port
-
-    server_proc.kill()
-    server_proc.join()
-
-
-def test_helloworld_sayhello(grpc_server):
+def test_helloworld_sayhello(asgi_grpc_server):
     with sonora.client.insecure_web_channel(
-        f"http://localhost:{grpc_server}"
+        f"http://localhost:{asgi_grpc_server}"
     ) as channel:
         stub = helloworld_pb2_grpc.GreeterStub(channel)
 
         for name in ("you", "world"):
             request = helloworld_pb2.HelloRequest(name=name)
             response = stub.SayHello(request)
-            assert response.message == FORMAT_STRING.format(request=request)
+            assert response.message != name
+            assert name in response.message
 
 
-def test_helloworld_sayhelloslowly(grpc_server):
+def test_helloworld_sayhelloslowly(asgi_grpc_server):
     with sonora.client.insecure_web_channel(
-        f"http://localhost:{grpc_server}"
+        f"http://localhost:{asgi_grpc_server}"
     ) as channel:
         stub = helloworld_pb2_grpc.GreeterStub(channel)
 
@@ -117,12 +32,13 @@ def test_helloworld_sayhelloslowly(grpc_server):
             request = helloworld_pb2.HelloRequest(name=name)
             response = stub.SayHelloSlowly(request)
             message = "".join(r.message for r in response)
-            assert message == FORMAT_STRING.format(request=request)
+            assert message != name
+            assert name in message
 
 
-def test_helloworld_abort(grpc_server):
+def test_helloworld_abort(asgi_grpc_server):
     with sonora.client.insecure_web_channel(
-        f"http://localhost:{grpc_server}"
+        f"http://localhost:{asgi_grpc_server}"
     ) as channel:
         stub = helloworld_pb2_grpc.GreeterStub(channel)
 
@@ -134,22 +50,36 @@ def test_helloworld_abort(grpc_server):
 
 
 @pytest.mark.asyncio
-async def test_helloworld_sayhello_async(grpc_server):
+async def test_helloworld_sayhello_async(asgi_grpc_server):
     async with sonora.aio.insecure_web_channel(
-        f"http://localhost:{grpc_server}"
+        f"http://localhost:{asgi_grpc_server}"
     ) as channel:
         stub = helloworld_pb2_grpc.GreeterStub(channel)
 
         for name in ("you", "world"):
             request = helloworld_pb2.HelloRequest(name=name)
             response = await stub.SayHello(request)
-            assert response.message == FORMAT_STRING.format(request=request)
+            assert response.message != name
+            assert name in response.message
 
 
 @pytest.mark.asyncio
-async def test_helloworld_sayhelloslowly_async_iter(grpc_server):
+async def test_helloworld_sayhello_timeout_async(asgi_grpc_server):
     async with sonora.aio.insecure_web_channel(
-        f"http://localhost:{grpc_server}"
+        f"http://localhost:{asgi_grpc_server}"
+    ) as channel:
+        stub = helloworld_pb2_grpc.GreeterStub(channel)
+
+        request = helloworld_pb2.HelloRequest(name="timeout")
+        with pytest.raises(grpc.RpcError) as exc:
+            await stub.SayHello(request, timeout=0.0000001)
+        assert exc.value.code() == grpc.StatusCode.DEADLINE_EXCEEDED
+
+
+@pytest.mark.asyncio
+async def test_helloworld_sayhelloslowly_async(asgi_grpc_server):
+    async with sonora.aio.insecure_web_channel(
+        f"http://localhost:{asgi_grpc_server}"
     ) as channel:
         stub = helloworld_pb2_grpc.GreeterStub(channel)
 
@@ -157,13 +87,14 @@ async def test_helloworld_sayhelloslowly_async_iter(grpc_server):
             request = helloworld_pb2.HelloRequest(name=name)
             response = stub.SayHelloSlowly(request)
             message = "".join([r.message async for r in response])
-            assert message == FORMAT_STRING.format(request=request)
+            assert message != name
+            assert name in message
 
 
 @pytest.mark.asyncio
-async def test_helloworld_sayhelloslowly_timeout(grpc_server):
+async def test_helloworld_sayhelloslowly_timeout_async(asgi_grpc_server):
     async with sonora.aio.insecure_web_channel(
-        f"http://localhost:{grpc_server}"
+        f"http://localhost:{asgi_grpc_server}"
     ) as channel:
         stub = helloworld_pb2_grpc.GreeterStub(channel)
 
@@ -177,32 +108,9 @@ async def test_helloworld_sayhelloslowly_timeout(grpc_server):
 
 
 @pytest.mark.asyncio
-async def test_helloworld_sayhelloslowly_async_with(grpc_server):
+async def test_helloworld_abort_async(asgi_grpc_server):
     async with sonora.aio.insecure_web_channel(
-        f"http://localhost:{grpc_server}"
-    ) as channel:
-        stub = helloworld_pb2_grpc.GreeterStub(channel)
-
-        for name in ("you", "world"):
-            buffer = []
-
-            request = helloworld_pb2.HelloRequest(name=name)
-
-            with stub.SayHelloSlowly(request) as call:
-                response = await call.read()
-
-                while response:
-                    buffer.append(response.message)
-                    response = await call.read()
-
-            message = "".join(buffer)
-            assert message == FORMAT_STRING.format(request=request)
-
-
-@pytest.mark.asyncio
-async def test_helloworld_abort_async(grpc_server):
-    async with sonora.aio.insecure_web_channel(
-        f"http://localhost:{grpc_server}"
+        f"http://localhost:{asgi_grpc_server}"
     ) as channel:
         stub = helloworld_pb2_grpc.GreeterStub(channel)
 

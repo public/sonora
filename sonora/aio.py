@@ -1,6 +1,4 @@
 import asyncio
-import functools
-
 import aiohttp
 import grpc.experimental.aio
 
