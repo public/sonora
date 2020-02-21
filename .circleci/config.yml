@@ -36,7 +36,8 @@ jobs:
         entrypoint: /bin/bash
     steps:
       - checkout
-      - run: sudo pip3 install grpcio-tools grpcio requests
+      - run: sudo pip3 install grpcio-tools
+      - run: sudo pip3 install .
       - run: |
           python3 -m grpc.tools.protoc \
             --proto_path=$(pwd) \
@@ -58,7 +59,8 @@ jobs:
         entrypoint: /bin/bash
     steps:
       - checkout
-      - run: sudo pip3 install grpcio-tools grpcio requests daphne
+      - run: sudo pip3 install grpcio-tools daphne
+      - run: sudo pip3 install .
       - run: |
           python3 -m grpc.tools.protoc \
             --proto_path="$(pwd)" \
