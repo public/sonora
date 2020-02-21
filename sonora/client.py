@@ -100,6 +100,7 @@ class Call:
     def _raise_timeout(cls, exc):
         def decorator(func):
             if inspect.isasyncgenfunction(func):
+
                 async def wrapper(self, *args, **kwargs):
                     try:
                         async for result in func(self, *args, **kwargs):
@@ -109,7 +110,9 @@ class Call:
                             grpc.StatusCode.DEADLINE_EXCEEDED,
                             f"exceeded {self._timeout} timeout",
                         )
+
             elif inspect.iscoroutinefunction(func):
+
                 async def wrapper(self, *args, **kwargs):
                     try:
                         return await func(self, *args, **kwargs)
@@ -118,7 +121,9 @@ class Call:
                             grpc.StatusCode.DEADLINE_EXCEEDED,
                             f"exceeded {self._timeout} timeout",
                         )
+
             elif inspect.isgeneratorfunction(func):
+
                 def wrapper(self, *args, **kwargs):
                     try:
                         result = yield from func(self, *args, **kwargs)
@@ -128,7 +133,9 @@ class Call:
                             grpc.StatusCode.DEADLINE_EXCEEDED,
                             f"exceeded {self._timeout} timeout",
                         )
+
             else:
+
                 def wrapper(self, *args, **kwargs):
                     try:
                         return func(self, *args, **kwargs)
@@ -148,9 +155,7 @@ class UnaryUnaryCall(Call):
     def __call__(self):
         with self._session.post(
             self._url,
-            data=protocol.wrap_message(
-                False, False, self._serializer(self._request)
-            ),
+            data=protocol.wrap_message(False, False, self._serializer(self._request)),
             headers=self._metadata,
             timeout=self._timeout,
         ) as self._response:
@@ -165,9 +170,7 @@ class UnaryStreamCall(Call):
     def __iter__(self):
         with self._session.post(
             self._url,
-            data=protocol.wrap_message(
-                False, False, self._serializer(self._request)
-            ),
+            data=protocol.wrap_message(False, False, self._serializer(self._request)),
             headers=self._metadata,
             timeout=self._timeout,
             stream=True,
