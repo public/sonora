@@ -26,8 +26,6 @@ class grpcASGI(grpc.Server):
 
         assert scope["type"] == "http"
 
-        print(scope)
-
         rpc_method = self._get_rpc_handler(scope["path"])
         request_method = scope["method"]
 

@@ -69,6 +69,7 @@ For ASGI things are mostly the same, the example shown here integrates with [Qua
 ```python
 from sonora.asgi import grpcASGI
 from quart import Quart
+import helloworld_pb2_grpc
 
 # Setup your frameworks default ASGI app.
 
@@ -91,7 +92,7 @@ Sonora currently only provides a sync API implementation based on requests.
 
 #### Requests (Sync)
 
-Instead of using gRPCs native `insecure_channel` API we have `sonora.client.insecure_web_channel` instead which provides a [requests](https://github.com/kennethreitz/requests) powered client channel to a gRPC-Web server. e.g.
+Instead of using gRPCs native `grpc.insecure_channel` API we have `sonora.client.insecure_web_channel` instead which provides a [requests](https://github.com/kennethreitz/requests) powered client channel to a gRPC-Web server. e.g.
 
 ```python
     import sonora.client
@@ -105,4 +106,31 @@ Instead of using gRPCs native `insecure_channel` API we have `sonora.client.inse
 
 #### Aiohttp (Async)
 
-Pull requests welcome.
+Instead of `grpc.aio.insecure_channel` we have `sonora.aio.insecure_web_channel` which provides an [aiohttp](https://docs.aiohttp.org/) based asyncio compatible client for gRPC-Web. e.g.
+
+```python
+    import sonora.aio
+
+    async with sonora.aio.insecure_web_channel(
+        f"http://localhost:8080"
+    ) as channel:
+        stub = helloworld_pb2_grpc.GreeterStub(channel)
+        print(await stub.SayHello("world"))
+
+        stub = helloworld_pb2_grpc.GreeterStub(channel)
+        async for response in stub.SayHelloSlowly("world"):
+            print(response)
+```
+
+This also supports the new streaming response API introduced by [gRFC L58](https://github.com/grpc/proposal/pull/155)
+
+```python
+    import sonora.aio
+
+    async with sonora.aio.insecure_web_channel(
+        f"http://localhost:8080"
+    ) as channel:
+        stub = helloworld_pb2_grpc.GreeterStub(channel)
+        async with stub.SayHelloSlowly("world") as response:
+            print(await response.read())
+```

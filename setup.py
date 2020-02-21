@@ -2,10 +2,8 @@ import io
 import os
 import sys
 from shutil import rmtree
-import subprocess
 
 from setuptools import find_packages, setup, Command
-from setuptools.command.test import test
 
 base_dir = os.path.abspath(os.path.dirname(__file__))
 
@@ -16,7 +14,7 @@ EMAIL = "alexs@prol.etari.at"
 AUTHOR = "Alex Stapleton"
 REQUIRES_PYTHON = ">=3.7.0"
 
-REQUIRED = ["grpcio", "requests"]
+REQUIRED = ["grpcio", "requests", "aiohttp"]
 
 TESTS_REQUIRED = [
     "grpcio-tools",
