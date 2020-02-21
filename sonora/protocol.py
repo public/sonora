@@ -181,3 +181,43 @@ def raise_for_status(headers, trailers=None):
             metadata["grpc-message"] = unquote(metadata["grpc-message"])
 
         raise WebRpcError.from_metadata(metadata)
+
+
+_timeout_units = {
+    b"H": 3600.0,
+    b"M": 60.0,
+    b"S": 1.0,
+    b"m": 1 / 1000.0,
+    b"u": 1 / 1000000.0,
+    b"n": 1 / 1000000000.0,
+}
+
+
+def parse_timeout(value):
+    units = value[-1:]
+    coef = _timeout_units[units]
+    count = int(value[:-1])
+    return count * coef
+
+
+def serialize_timeout(seconds):
+    if seconds % 3600 == 0:
+        value = seconds
+        units = "H"
+    elif seconds % 60 == 0:
+        value = seconds
+        units = "M"
+    elif seconds % 1 == 0:
+        value = seconds
+        units = "S"
+    elif seconds >= 1 / 1000.0:
+        value = seconds * 1000
+        units = "m"
+    elif seconds >= 1 / 1000000.0:
+        value = seconds * 1000000
+        units = "u"
+    else:
+        value = seconds * 1000000000
+        units = "n"
+
+    return f"{int(value)}{units}"

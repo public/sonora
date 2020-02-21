@@ -1,10 +1,19 @@
+import time
+
 import grpc
 
 
 class gRPCContext(grpc.ServicerContext):
-    def __init__(self):
+    def __init__(self, timeout=None):
         self.code = grpc.StatusCode.OK
         self.details = None
+
+        self._timeout = timeout
+
+        if timeout is not None:
+            self._deadline = time.monotonic() + timeout
+        else:
+            self._deadline = None
 
     def set_code(self, code):
         self.code = code
@@ -28,6 +37,12 @@ class gRPCContext(grpc.ServicerContext):
         self.set_code(status)
 
         raise grpc.RpcError()
+
+    def time_remaining(self):
+        if self._deadline is not None:
+            return max(time.monotonic() - self._deadline, 0)
+        else:
+            return None
 
     def invocation_metadata(self):
         raise NotImplementedError()
@@ -57,7 +72,4 @@ class gRPCContext(grpc.ServicerContext):
         raise NotImplementedError()
 
     def is_active(self):
-        raise NotImplementedError()
-
-    def time_remaining(self):
         raise NotImplementedError()

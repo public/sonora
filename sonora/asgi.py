@@ -1,7 +1,9 @@
+import asyncio
 from collections import namedtuple
 from collections.abc import AsyncIterator
 from urllib.parse import quote
 
+from async_timeout import timeout
 import grpc
 
 from sonora import protocol
@@ -31,7 +33,15 @@ class grpcASGI(grpc.Server):
 
         if rpc_method:
             if request_method == "POST":
-                await self._do_grpc_request(rpc_method, scope, receive, send)
+                context = self._create_context(scope)
+                try:
+                    async with timeout(context.time_remaining()):
+                        await self._do_grpc_request(rpc_method, context, receive, send)
+                except asyncio.TimeoutError:
+                    context.code = grpc.StatusCode.DEADLINE_EXCEEDED
+                    context.details = "rpc timed out"
+                    await self._do_grpc_error(context, send)
+
             elif request_method == "OPTIONS":
                 await self._do_cors_preflight(scope, receive, send)
             else:
@@ -58,9 +68,17 @@ class grpcASGI(grpc.Server):
 
         return None
 
-    async def _do_grpc_request(self, rpc_method, scope, receive, send):
-        context = gRPCContext()
+    def _create_context(self, scope):
+        timeout = None
 
+        for header, value in scope['headers']:
+            if header == b"grpc-timeout":
+                timeout = protocol.parse_timeout(value)
+                break
+
+        return gRPCContext(timeout)
+
+    async def _do_grpc_request(self, rpc_method, context, receive, send):
         request_proto_iterator = (
             rpc_method.request_deserializer(message)
             async for _, _, message in protocol.unwrap_message_asgi(receive)
@@ -149,14 +167,25 @@ class grpcASGI(grpc.Server):
                     {"type": "http.response.body", "body": body, "more_body": False}
                 )
         except grpc.RpcError:
-            status = protocol.grpc_status_to_http_status(context.code)
-            headers.append((b"grpc-status", str(context.code.value[0]).encode()))
-            if context.details:
-                headers.append((b"grpc-message", quote(context.details).encode()))
-            await send(
-                {"type": "http.response.start", "status": status, "headers": headers}
-            )
-            await send({"type": "http.response.body", "body": b"", "more_body": False})
+            await self._do_grpc_error(context, send)
+
+    async def _do_grpc_error(self, context, send):
+        headers = [
+            (b"Content-Type", b"application/grpc-web+proto"),
+            (b"Access-Control-Allow-Origin", b"*"),
+            (b"Access-Control-Expose-Headers", b"*"),
+        ]
+
+        status = protocol.grpc_status_to_http_status(context.code)
+        headers.append((b"grpc-status", str(context.code.value[0]).encode()))
+
+        if context.details:
+            headers.append((b"grpc-message", quote(context.details).encode()))
+
+        await send(
+            {"type": "http.response.start", "status": status, "headers": headers}
+        )
+        await send({"type": "http.response.body", "body": b"", "more_body": False})
 
     async def _do_cors_preflight(self, scope, receive, send):
         await send(
