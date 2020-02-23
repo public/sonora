@@ -28,7 +28,8 @@ def _asgi_helloworld_server(lock, port):
 def _asgi_benchmark_server(lock, port):
     lock.release()
     os.execvp(
-        "daphne", ["daphne", f"-p{port}", "-v0", "tests.conftest:asgi_benchmark_application"],
+        "daphne",
+        ["daphne", f"-p{port}", "-v0", "tests.conftest:asgi_benchmark_application"],
     )
 
 

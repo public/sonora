@@ -140,7 +140,7 @@ class grpcASGI(grpc.Server):
 
                     if receive_task.done():
                         message = receive_task.result()
-                        if message['type'] == 'http.disconnect':
+                        if message["type"] == "http.disconnect":
                             break
                         else:
                             receive_task = asyncio.create_task(receive())

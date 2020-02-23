@@ -24,7 +24,9 @@ def test_asgi_unarycall(asgi_benchmark_grpc_server, benchmark, event_loop, size)
 
 
 @pytest.mark.parametrize("size", [0, 100, 1000, 10000, 100000])
-def test_asgi_streamingfromserver(asgi_benchmark_grpc_server, event_loop, benchmark, size):
+def test_asgi_streamingfromserver(
+    asgi_benchmark_grpc_server, event_loop, benchmark, size
+):
 
     request_count = 10
     chunk_count = 100
@@ -47,7 +49,7 @@ def test_asgi_streamingfromserver(asgi_benchmark_grpc_server, event_loop, benchm
                     n += 1
                     if n >= chunk_count:
                         break
-                
+
                 assert n == chunk_count
 
             assert recv_bytes == size * request_count * chunk_count

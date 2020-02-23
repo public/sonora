@@ -64,6 +64,7 @@ class NotImplementedMulticallable(Multicallable):
     def __call__(self, request, timeout=None):
         def nope(*args, **kwargs):
             raise NotImplementedError()
+
         return nope
 
 

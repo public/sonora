@@ -8,7 +8,9 @@ from tests import benchmark_pb2, benchmark_pb2_grpc
 @pytest.mark.parametrize("size", [0, 100, 1000, 10000, 100000])
 def test_grpcio_unarycall(grpcio_benchmark_grpc_server, benchmark, size):
     def perf():
-        with grpc.insecure_channel(f'localhost:{grpcio_benchmark_grpc_server}') as channel:
+        with grpc.insecure_channel(
+            f"localhost:{grpcio_benchmark_grpc_server}"
+        ) as channel:
             stub = benchmark_pb2_grpc.BenchmarkServiceStub(channel)
 
             request = benchmark_pb2.SimpleRequest(response_size=size)
@@ -26,7 +28,9 @@ def test_grpcio_streamingfromserver(grpcio_benchmark_grpc_server, benchmark, siz
     chunk_count = 100
 
     def perf():
-        with grpc.insecure_channel(f'localhost:{grpcio_benchmark_grpc_server}') as channel:
+        with grpc.insecure_channel(
+            f"localhost:{grpcio_benchmark_grpc_server}"
+        ) as channel:
             stub = benchmark_pb2_grpc.BenchmarkServiceStub(channel)
 
             request = benchmark_pb2.SimpleRequest(response_size=size)
@@ -41,10 +45,9 @@ def test_grpcio_streamingfromserver(grpcio_benchmark_grpc_server, benchmark, siz
                     n += 1
                     if n >= chunk_count:
                         break
-                
-                assert n == chunk_count
-            
-            assert recv_bytes == size * request_count * chunk_count
 
+                assert n == chunk_count
+
+            assert recv_bytes == size * request_count * chunk_count
 
     benchmark(perf)
