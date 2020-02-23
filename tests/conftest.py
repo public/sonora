@@ -25,11 +25,25 @@ def _asgi_helloworld_server(lock, port):
     )
 
 
-def _asgi_benchmark_server(lock, port):
+def _asgi_daphne_benchmark_server(lock, port):
     lock.release()
     os.execvp(
         "daphne",
         ["daphne", f"-p{port}", "-v0", "tests.conftest:asgi_benchmark_application"],
+    )
+
+
+def _asgi_uvicorn_benchmark_server(lock, port):
+    lock.release()
+    os.execvp(
+        "uvicorn",
+        [
+            "uvicorn",
+            "--port",
+            f"{port}",
+            "--no-access-log",
+            "tests.conftest:asgi_benchmark_application",
+        ],
     )
 
 
@@ -202,7 +216,9 @@ def _server_fixture(server):
 asgi_grpc_server = pytest.fixture(_server_fixture(_asgi_helloworld_server))
 wsgi_grpc_server = pytest.fixture(_server_fixture(_wsgi_helloworld_server))
 
-asgi_benchmark_grpc_server = pytest.fixture(_server_fixture(_asgi_benchmark_server))
+asgi_benchmark_grpc_server = pytest.fixture(
+    _server_fixture(_asgi_uvicorn_benchmark_server)
+)
 grpcio_benchmark_grpc_server = pytest.fixture(_server_fixture(_grpcio_benchmark_server))
 
 asgi_helloworld_application = _asgi_helloworld_application()

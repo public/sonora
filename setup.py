@@ -24,6 +24,7 @@ TESTS_REQUIRED = [
     "pytest-benchmark",
     "requests",
     "daphne",
+    "uvicorn",
 ]
 
 EXTRAS = {"tests": TESTS_REQUIRED}
