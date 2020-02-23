@@ -128,6 +128,8 @@ class grpcASGI(grpc.Server):
                     {"type": "http.response.body", "body": body, "more_body": True}
                 )
 
+                receive_task = asyncio.create_task(receive())
+
                 async for message in coroutine:
                     body = protocol.wrap_message(
                         False, False, rpc_method.response_serializer(message)
@@ -135,6 +137,13 @@ class grpcASGI(grpc.Server):
                     await send(
                         {"type": "http.response.body", "body": body, "more_body": True}
                     )
+
+                    if receive_task.done():
+                        message = receive_task.result()
+                        if message['type'] == 'http.disconnect':
+                            break
+                        else:
+                            receive_task = asyncio.create_task(receive())
 
                 trailers = [("grpc-status", str(context.code.value[0]))]
                 if context.details:
