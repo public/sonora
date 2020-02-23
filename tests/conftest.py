@@ -200,6 +200,7 @@ def _server_fixture(server):
 
 
 asgi_grpc_server = pytest.fixture(_server_fixture(_asgi_helloworld_server))
+wsgi_grpc_server = pytest.fixture(_server_fixture(_wsgi_helloworld_server))
 
 asgi_benchmark_grpc_server = pytest.fixture(_server_fixture(_asgi_benchmark_server))
 grpcio_benchmark_grpc_server = pytest.fixture(_server_fixture(_grpcio_benchmark_server))
