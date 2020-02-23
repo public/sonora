@@ -21,6 +21,7 @@ TESTS_REQUIRED = [
     "pytest",
     "pytest-mockservers",
     "pytest-asyncio",
+    "pytest-benchmark",
     "requests",
     "daphne",
 ]
