@@ -34,10 +34,10 @@ class WebChannel:
         )
 
     def stream_unary(self, path, request_serializer, response_deserializer):
-        raise NotImplementedError()
+        return NotImplementedMulticallable()
 
     def stream_stream(self, path, request_serializer, response_deserializer):
-        raise NotImplementedError()
+        return NotImplementedMulticallable()
 
 
 class Multicallable:
@@ -55,6 +55,16 @@ class Multicallable:
 
     def future(self, request):
         raise NotImplementedError()
+
+
+class NotImplementedMulticallable(Multicallable):
+    def __init__(self):
+        pass
+
+    def __call__(self, request, timeout=None):
+        def nope(*args, **kwargs):
+            raise NotImplementedError()
+        return nope
 
 
 class UnaryUnaryMulticallable(Multicallable):
