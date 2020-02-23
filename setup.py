@@ -25,6 +25,7 @@ TESTS_REQUIRED = [
     "requests",
     "daphne",
     "uvicorn",
+    "aiohttp[speedups]",
 ]
 
 EXTRAS = {"tests": TESTS_REQUIRED}
