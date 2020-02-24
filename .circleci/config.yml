@@ -15,6 +15,7 @@ jobs:
     steps:
       - checkout
       - run: sudo pip install tox
+      - run: sudo apt-get install python3-dev libev-dev
       - run: tox -e py37
   test-py38:
     docker:
@@ -22,6 +23,7 @@ jobs:
     steps:
       - checkout
       - run: sudo pip install tox
+      - run: sudo apt-get install python3-dev libev-dev
       - run: tox -e py38
   black-py37:
     docker:
