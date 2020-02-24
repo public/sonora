@@ -4,7 +4,7 @@ import sonora.aio
 from tests import benchmark_pb2, benchmark_pb2_grpc
 
 
-@pytest.mark.parametrize("size", [1, 100, 1000, 10000, 100000])
+@pytest.mark.parametrize("size", [1, 100, 10000, 1000000])
 def test_asgi_unarycall(asgi_benchmark_grpc_server, benchmark, event_loop, size):
     async def run():
         async with sonora.aio.insecure_web_channel(
@@ -15,7 +15,8 @@ def test_asgi_unarycall(asgi_benchmark_grpc_server, benchmark, event_loop, size)
             request = benchmark_pb2.SimpleRequest(response_size=size)
 
             for _ in range(1000):
-                _ = await stub.UnaryCall(request)
+                message = await stub.UnaryCall(request)
+                assert len(message.payload.body) == size
 
     def perf():
         event_loop.run_until_complete(run())
@@ -23,7 +24,7 @@ def test_asgi_unarycall(asgi_benchmark_grpc_server, benchmark, event_loop, size)
     benchmark(perf)
 
 
-@pytest.mark.parametrize("size", [1, 100, 1000, 10000, 100000])
+@pytest.mark.parametrize("size", [1, 100, 10000, 1000000])
 def test_asgi_streamingfromserver(
     asgi_benchmark_grpc_server, event_loop, benchmark, size
 ):

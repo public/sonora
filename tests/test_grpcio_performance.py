@@ -5,7 +5,7 @@ import grpc
 from tests import benchmark_pb2, benchmark_pb2_grpc
 
 
-@pytest.mark.parametrize("size", [1, 100, 1000, 10000, 100000])
+@pytest.mark.parametrize("size", [1, 100, 10000, 1000000])
 def test_grpcio_unarycall(grpcio_benchmark_grpc_server, benchmark, size):
     def perf():
         with grpc.insecure_channel(
@@ -16,12 +16,13 @@ def test_grpcio_unarycall(grpcio_benchmark_grpc_server, benchmark, size):
             request = benchmark_pb2.SimpleRequest(response_size=size)
 
             for _ in range(1000):
-                _ = stub.UnaryCall(request)
+                message = stub.UnaryCall(request)
+                assert len(message.payload.body) == size
 
     benchmark(perf)
 
 
-@pytest.mark.parametrize("size", [1, 100, 1000, 10000, 100000])
+@pytest.mark.parametrize("size", [1, 100, 10000, 1000000])
 def test_grpcio_streamingfromserver(grpcio_benchmark_grpc_server, benchmark, size):
 
     request_count = 10
