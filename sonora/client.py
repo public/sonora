@@ -14,6 +14,9 @@ def insecure_web_channel(url):
 
 class WebChannel:
     def __init__(self, url):
+        if not url.startswith("http") and "://" not in url:
+            url = f"http://{url}"
+
         self._url = url
         self._session = requests.Session()
 
