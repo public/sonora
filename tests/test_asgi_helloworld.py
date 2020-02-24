@@ -1,123 +1,52 @@
 import grpc
 import pytest
 
-import sonora.aio
-import sonora.asgi
-import sonora.client
-
 from google.protobuf.empty_pb2 import Empty
-from tests import helloworld_pb2, helloworld_pb2_grpc
-
-
-def test_helloworld_sayhello(asgi_grpc_server):
-    with sonora.client.insecure_web_channel(
-        f"http://localhost:{asgi_grpc_server}"
-    ) as channel:
-        stub = helloworld_pb2_grpc.GreeterStub(channel)
-
-        for name in ("you", "world"):
-            request = helloworld_pb2.HelloRequest(name=name)
-            response = stub.SayHello(request)
-            assert response.message != name
-            assert name in response.message
-
-
-def test_helloworld_sayhelloslowly(asgi_grpc_server):
-    with sonora.client.insecure_web_channel(
-        f"http://localhost:{asgi_grpc_server}"
-    ) as channel:
-        stub = helloworld_pb2_grpc.GreeterStub(channel)
-
-        for name in ("you", "world"):
-            request = helloworld_pb2.HelloRequest(name=name)
-            response = stub.SayHelloSlowly(request)
-            message = "".join(r.message for r in response)
-            assert message != name
-            assert name in message
-
-
-def test_helloworld_abort(asgi_grpc_server):
-    with sonora.client.insecure_web_channel(
-        f"http://localhost:{asgi_grpc_server}"
-    ) as channel:
-        stub = helloworld_pb2_grpc.GreeterStub(channel)
-
-        with pytest.raises(grpc.RpcError) as exc:
-            stub.Abort(Empty())
-
-        assert exc.value.code() == grpc.StatusCode.ABORTED
-        assert exc.value.details() == "test aborting"
+from tests import helloworld_pb2
 
 
 @pytest.mark.asyncio
-async def test_helloworld_sayhello_async(asgi_grpc_server):
-    async with sonora.aio.insecure_web_channel(
-        f"http://localhost:{asgi_grpc_server}"
-    ) as channel:
-        stub = helloworld_pb2_grpc.GreeterStub(channel)
-
-        for name in ("you", "world"):
-            request = helloworld_pb2.HelloRequest(name=name)
-            response = await stub.SayHello(request)
-            assert response.message != name
-            assert name in response.message
+async def test_helloworld_sayhello(asgi_greeter):
+    for name in ("you", "world"):
+        request = helloworld_pb2.HelloRequest(name=name)
+        response = await asgi_greeter.SayHello(request)
+        assert response.message != name
+        assert name in response.message
 
 
 @pytest.mark.asyncio
-async def test_helloworld_sayhello_timeout_async(asgi_grpc_server):
-    async with sonora.aio.insecure_web_channel(
-        f"http://localhost:{asgi_grpc_server}"
-    ) as channel:
-        stub = helloworld_pb2_grpc.GreeterStub(channel)
-
-        request = helloworld_pb2.HelloRequest(name="server timeout")
-        with pytest.raises(grpc.RpcError) as exc:
-            await stub.SayHello(request, timeout=0.1)
-        assert exc.value.code() == grpc.StatusCode.DEADLINE_EXCEEDED
-        assert exc.value.details() == "request timed out at the server"
+async def test_helloworld_unarytimeout(asgi_greeter):
+    request = helloworld_pb2.TimeoutRequest(seconds=0.1)
+    with pytest.raises(grpc.RpcError) as exc:
+        await asgi_greeter.UnaryTimeout(request, timeout=0.001)
+    assert exc.value.code() == grpc.StatusCode.DEADLINE_EXCEEDED
 
 
 @pytest.mark.asyncio
-async def test_helloworld_sayhelloslowly_async(asgi_grpc_server):
-    async with sonora.aio.insecure_web_channel(
-        f"http://localhost:{asgi_grpc_server}"
-    ) as channel:
-        stub = helloworld_pb2_grpc.GreeterStub(channel)
+async def test_helloworld_streamtimeout(asgi_greeter):
+    request = helloworld_pb2.TimeoutRequest(seconds=0.1)
+    response = asgi_greeter.StreamTimeout(request, timeout=0.001)
 
-        for name in ("you", "world"):
-            request = helloworld_pb2.HelloRequest(name=name)
-            response = stub.SayHelloSlowly(request)
-            message = "".join([r.message async for r in response])
-            assert message != name
-            assert name in message
+    with pytest.raises(grpc.RpcError) as exc:
+        async for r in response:
+            pass
+    assert exc.value.code() == grpc.StatusCode.DEADLINE_EXCEEDED
 
 
 @pytest.mark.asyncio
-async def test_helloworld_sayhelloslowly_timeout_async(asgi_grpc_server):
-    async with sonora.aio.insecure_web_channel(
-        f"http://localhost:{asgi_grpc_server}"
-    ) as channel:
-        stub = helloworld_pb2_grpc.GreeterStub(channel)
-
-        request = helloworld_pb2.HelloRequest(name="server timeout")
-        response = stub.SayHelloSlowly(request, timeout=0.0000001)
-
-        with pytest.raises(grpc.RpcError) as exc:
-            async for r in response:
-                pass
-        assert exc.value.code() == grpc.StatusCode.DEADLINE_EXCEEDED
-        assert exc.value.details() == "request timed out at the server"
+async def test_helloworld_sayhelloslowly(asgi_greeter):
+    for name in ("you", "world"):
+        request = helloworld_pb2.HelloRequest(name=name)
+        response = asgi_greeter.SayHelloSlowly(request)
+        message = "".join([r.message async for r in response])
+        assert message != name
+        assert name in message
 
 
 @pytest.mark.asyncio
-async def test_helloworld_abort_async(asgi_grpc_server):
-    async with sonora.aio.insecure_web_channel(
-        f"http://localhost:{asgi_grpc_server}"
-    ) as channel:
-        stub = helloworld_pb2_grpc.GreeterStub(channel)
+async def test_helloworld_abort(asgi_greeter):
+    with pytest.raises(grpc.RpcError) as exc:
+        await asgi_greeter.Abort(Empty())
 
-        with pytest.raises(grpc.RpcError) as exc:
-            await stub.Abort(Empty())
-
-        assert exc.value.code() == grpc.StatusCode.ABORTED
-        assert exc.value.details() == "test aborting"
+    assert exc.value.code() == grpc.StatusCode.ABORTED
+    assert exc.value.details() == "test aborting"

@@ -5,18 +5,13 @@ from tests import benchmark_pb2, benchmark_pb2_grpc
 
 
 @pytest.mark.parametrize("size", [1, 100, 10000, 1000000])
-def test_asgi_unarycall(asgi_benchmark_grpc_server, benchmark, event_loop, size):
+def test_asgi_unarycall(asgi_benchmark, benchmark, event_loop, size):
     async def run():
-        async with sonora.aio.insecure_web_channel(
-            f"http://localhost:{asgi_benchmark_grpc_server}"
-        ) as channel:
-            stub = benchmark_pb2_grpc.BenchmarkServiceStub(channel)
+        request = benchmark_pb2.SimpleRequest(response_size=size)
 
-            request = benchmark_pb2.SimpleRequest(response_size=size)
-
-            for _ in range(1000):
-                message = await stub.UnaryCall(request)
-                assert len(message.payload.body) == size
+        for _ in range(1000):
+            message = await asgi_benchmark.UnaryCall(request)
+            assert len(message.payload.body) == size
 
     def perf():
         event_loop.run_until_complete(run())
@@ -25,35 +20,28 @@ def test_asgi_unarycall(asgi_benchmark_grpc_server, benchmark, event_loop, size)
 
 
 @pytest.mark.parametrize("size", [1, 100, 10000, 1000000])
-def test_asgi_streamingfromserver(
-    asgi_benchmark_grpc_server, event_loop, benchmark, size
-):
+def test_asgi_streamingfromserver(asgi_benchmark, event_loop, benchmark, size):
 
     request_count = 10
     chunk_count = 100
 
     async def run():
-        async with sonora.aio.insecure_web_channel(
-            f"http://localhost:{asgi_benchmark_grpc_server}"
-        ) as channel:
-            stub = benchmark_pb2_grpc.BenchmarkServiceStub(channel)
+        request = benchmark_pb2.SimpleRequest(response_size=size)
+        request.payload.body = b"\0" * size
 
-            request = benchmark_pb2.SimpleRequest(response_size=size)
-            request.payload.body = b"\0" * size
+        recv_bytes = 0
 
-            recv_bytes = 0
+        for _ in range(request_count):
+            n = 0
+            async for message in asgi_benchmark.StreamingFromServer(request):
+                recv_bytes += len(message.payload.body)
+                n += 1
+                if n >= chunk_count:
+                    break
 
-            for _ in range(request_count):
-                n = 0
-                async for message in stub.StreamingFromServer(request):
-                    recv_bytes += len(message.payload.body)
-                    n += 1
-                    if n >= chunk_count:
-                        break
+            assert n == chunk_count
 
-                assert n == chunk_count
-
-            assert recv_bytes == size * request_count * chunk_count
+        assert recv_bytes == size * request_count * chunk_count
 
     def perf():
         event_loop.run_until_complete(run())

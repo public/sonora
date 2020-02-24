@@ -5,10 +5,10 @@ from tests import benchmark_pb2, benchmark_pb2_grpc
 
 
 @pytest.mark.parametrize("size", [1, 100, 10000, 1000000])
-def test_wsgi_unarycall(wsgi_benchmark_grpc_server, benchmark, size):
+def test_wsgi_unarycall(wsgi_benchmark_server, benchmark, size):
     def perf():
         with sonora.client.insecure_web_channel(
-            f"http://localhost:{wsgi_benchmark_grpc_server}"
+            f"http://localhost:{wsgi_benchmark_server}"
         ) as channel:
             stub = benchmark_pb2_grpc.BenchmarkServiceStub(channel)
 
@@ -22,14 +22,14 @@ def test_wsgi_unarycall(wsgi_benchmark_grpc_server, benchmark, size):
 
 
 @pytest.mark.parametrize("size", [1, 100, 10000, 1000000])
-def test_wsgi_streamingfromserver(wsgi_benchmark_grpc_server, benchmark, size):
+def test_wsgi_streamingfromserver(wsgi_benchmark_server, benchmark, size):
 
     request_count = 10
     chunk_count = 100
 
     def perf():
         with sonora.client.insecure_web_channel(
-            f"http://localhost:{wsgi_benchmark_grpc_server}"
+            f"http://localhost:{wsgi_benchmark_server}"
         ) as channel:
             stub = benchmark_pb2_grpc.BenchmarkServiceStub(channel)
 

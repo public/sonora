@@ -1,197 +1,169 @@
 import asyncio
 from concurrent import futures
+import contextlib
 import multiprocessing
-import os
 import socket
 import time
 
 import bjoern
 import grpc
+from google.protobuf import empty_pb2
 import pytest
+import uvicorn
+
 import sonora.aio
 import sonora.asgi
 import sonora.client
 import sonora.protocol
 import sonora.wsgi
+
 from tests import benchmark_pb2, benchmark_pb2_grpc, helloworld_pb2, helloworld_pb2_grpc
 
 FORMAT_STRING = "Hello, {request.name}!"
 
 
+class SyncGreeter(helloworld_pb2_grpc.GreeterServicer):
+    def SayHello(self, request, context):
+        return helloworld_pb2.HelloReply(message=FORMAT_STRING.format(request=request))
+
+    def SayHelloSlowly(self, request, context):
+        message = FORMAT_STRING.format(request=request)
+        for char in message:
+            yield helloworld_pb2.HelloReply(message=char)
+
+    def Abort(self, request, context):
+        context.abort(grpc.StatusCode.ABORTED, "test aborting")
+
+    def UnaryTimeout(self, request, context):
+        while 1:
+            time.sleep(request.seconds)
+
+    def StreamTimeout(self, request, context):
+        while 1:
+            time.sleep(request.seconds)
+            yield empty_pb2.Empty()
+
+
+class AsyncGreeter(helloworld_pb2_grpc.GreeterServicer):
+    async def SayHello(self, request, context):
+        return helloworld_pb2.HelloReply(message=FORMAT_STRING.format(request=request))
+
+    async def SayHelloSlowly(self, request, context):
+        message = FORMAT_STRING.format(request=request)
+
+        for char in message:
+            yield helloworld_pb2.HelloReply(message=char)
+
+    async def Abort(self, request, context):
+        context.abort(grpc.StatusCode.ABORTED, "test aborting")
+
+    async def Timeout(self, request, context):
+        while 1:
+            await asyncio.sleep(request.seconds)
+
+    async def StreamTimeout(self, request, context):
+        while 1:
+            await asyncio.sleep(request.seconds)
+            yield empty_pb2.Empty()
+
+
+class SyncBenchmark(benchmark_pb2_grpc.BenchmarkServiceServicer):
+    def UnaryCall(self, request, context):
+        response = benchmark_pb2.SimpleResponse()
+        response.payload.body = b"\0" * request.response_size
+        return response
+
+    def StreamingCall(self, request, context):
+        raise NotImplementedError()
+
+    def StreamingFromClient(self, request, context):
+        raise NotImplementedError()
+
+    def StreamingFromServer(self, request, context):
+        response = benchmark_pb2.SimpleResponse()
+        response.payload.body = request.payload.body
+        while 1:
+            yield response
+
+    def StreamingBothWays(self, request, context):
+        raise NotImplementedError()
+
+
+class AsyncBenchmark(benchmark_pb2_grpc.BenchmarkServiceServicer):
+    async def UnaryCall(self, request, context):
+        response = benchmark_pb2.SimpleResponse()
+        response.payload.body = b"\0" * request.response_size
+        return response
+
+    async def StreamingCall(self, request, context):
+        raise NotImplementedError()
+
+    async def StreamingFromClient(self, request, context):
+        raise NotImplementedError()
+
+    async def StreamingFromServer(self, request, context):
+        response = benchmark_pb2.SimpleResponse()
+        response.payload.body = request.payload.body
+        while 1:
+            yield response
+
+    async def StreamingBothWays(self, request, context):
+        raise NotImplementedError()
+
+
 def _asgi_helloworld_server(lock, port):
+    grpc_asgi_app = sonora.asgi.grpcASGI()
+    helloworld_pb2_grpc.add_GreeterServicer_to_server(AsyncGreeter(), grpc_asgi_app)
+
     lock.release()
-    os.execvp(
-        "uvicorn",
-        [
-            "uvicorn",
-            "--port",
-            f"{port}",
-            "--no-access-log",
-            "tests.conftest:asgi_helloworld_application",
-        ],
+
+    uvicorn.run(
+        grpc_asgi_app, host="127.0.0.1", port=port, log_level="info", access_log=False
     )
 
 
 def _asgi_benchmark_server(lock, port):
+    grpc_asgi_app = sonora.asgi.grpcASGI()
+    benchmark_pb2_grpc.add_BenchmarkServiceServicer_to_server(
+        AsyncBenchmark(), grpc_asgi_app
+    )
+
     lock.release()
-    os.execvp(
-        "uvicorn",
-        [
-            "uvicorn",
-            "--port",
-            f"{port}",
-            "--no-access-log",
-            "tests.conftest:asgi_benchmark_application",
-        ],
+
+    uvicorn.run(
+        grpc_asgi_app, host="127.0.0.1", port=port, log_level="info", access_log=False
     )
 
 
 def _wsgi_helloworld_server(lock, port):
-    class Greeter(helloworld_pb2_grpc.GreeterServicer):
-        def SayHello(self, request, context):
-            if request.name == "timeout":
-                time.sleep(100)
-            return helloworld_pb2.HelloReply(
-                message=FORMAT_STRING.format(request=request)
-            )
-
-        def SayHelloSlowly(self, request, context):
-            if request.name == "timeout":
-                time.sleep(100)
-
-            message = FORMAT_STRING.format(request=request)
-            for char in message:
-                yield helloworld_pb2.HelloReply(message=char)
-
-        def Abort(self, request, context):
-            context.abort(grpc.StatusCode.ABORTED, "test aborting")
-
     grpc_wsgi_app = sonora.wsgi.grpcWSGI(None)
-    helloworld_pb2_grpc.add_GreeterServicer_to_server(Greeter(), grpc_wsgi_app)
+    helloworld_pb2_grpc.add_GreeterServicer_to_server(SyncGreeter(), grpc_wsgi_app)
     bjoern.listen(grpc_wsgi_app, "localhost", port)
+
     lock.release()
+
     bjoern.run()
-
-
-def _asgi_helloworld_application():
-    class Greeter(helloworld_pb2_grpc.GreeterServicer):
-        async def SayHello(self, request, context):
-            if request.name == "server timeout":
-                await asyncio.sleep(100)
-            elif request.name == "client timeout":
-                time.sleep(100)
-
-            return helloworld_pb2.HelloReply(
-                message=FORMAT_STRING.format(request=request)
-            )
-
-        async def SayHelloSlowly(self, request, context):
-            if request.name == "server timeout":
-                await asyncio.sleep(100)
-            elif request.name == "client timeout":
-                time.sleep(100)
-
-            message = FORMAT_STRING.format(request=request)
-
-            for char in message:
-                yield helloworld_pb2.HelloReply(message=char)
-
-        async def Abort(self, request, context):
-            context.abort(grpc.StatusCode.ABORTED, "test aborting")
-
-    grpc_asgi_app = sonora.asgi.grpcASGI()
-    helloworld_pb2_grpc.add_GreeterServicer_to_server(Greeter(), grpc_asgi_app)
-
-    return grpc_asgi_app
 
 
 def _wsgi_benchmark_server(lock, port):
-    class Benchmark(benchmark_pb2_grpc.BenchmarkServiceServicer):
-        def UnaryCall(self, request, context):
-            response = benchmark_pb2.SimpleResponse()
-            response.payload.body = b"\0" * request.response_size
-            return response
-
-        def StreamingCall(self, request, context):
-            raise NotImplementedError()
-
-        def StreamingFromClient(self, request, context):
-            raise NotImplementedError()
-
-        def StreamingFromServer(self, request, context):
-            response = benchmark_pb2.SimpleResponse()
-            response.payload.body = request.payload.body
-            while 1:
-                yield response
-
-        def StreamingBothWays(self, request, context):
-            raise NotImplementedError()
-
     grpc_wsgi_app = sonora.wsgi.grpcWSGI(None)
     benchmark_pb2_grpc.add_BenchmarkServiceServicer_to_server(
-        Benchmark(), grpc_wsgi_app
+        SyncBenchmark(), grpc_wsgi_app
     )
     bjoern.listen(grpc_wsgi_app, "localhost", port)
+
     lock.release()
+
     bjoern.run()
 
 
-def _asgi_benchmark_application():
-    class Benchmark(benchmark_pb2_grpc.BenchmarkServiceServicer):
-        async def UnaryCall(self, request, context):
-            response = benchmark_pb2.SimpleResponse()
-            response.payload.body = b"\0" * request.response_size
-            return response
-
-        async def StreamingCall(self, request, context):
-            raise NotImplementedError()
-
-        async def StreamingFromClient(self, request, context):
-            raise NotImplementedError()
-
-        async def StreamingFromServer(self, request, context):
-            response = benchmark_pb2.SimpleResponse()
-            response.payload.body = request.payload.body
-            while 1:
-                yield response
-
-        async def StreamingBothWays(self, request, context):
-            raise NotImplementedError()
-
-    grpc_asgi_app = sonora.asgi.grpcASGI()
-    benchmark_pb2_grpc.add_BenchmarkServiceServicer_to_server(
-        Benchmark(), grpc_asgi_app
-    )
-
-    return grpc_asgi_app
-
-
 def _grpcio_benchmark_server(lock, port):
-    class Benchmark(benchmark_pb2_grpc.BenchmarkServiceServicer):
-        def UnaryCall(self, request, context):
-            response = benchmark_pb2.SimpleResponse()
-            response.payload.body = b"\0" * request.response_size
-            return response
-
-        def StreamingCall(self, request, context):
-            raise NotImplementedError()
-
-        def StreamingFromClient(self, request, context):
-            raise NotImplementedError()
-
-        def StreamingFromServer(self, request, context):
-            response = benchmark_pb2.SimpleResponse()
-            response.payload.body = request.payload.body
-            while 1:
-                yield response
-
-        def StreamingBothWays(self, request, context):
-            raise NotImplementedError()
-
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=1))
-    benchmark_pb2_grpc.add_BenchmarkServiceServicer_to_server(Benchmark(), server)
+    benchmark_pb2_grpc.add_BenchmarkServiceServicer_to_server(SyncBenchmark(), server)
     server.add_insecure_port(f"localhost:{port}")
+
     lock.release()
+
     server.start()
     server.wait_for_termination()
 
@@ -206,7 +178,6 @@ def _wait_for_server(port, timeout=5):
         except ConnectionRefusedError:
             continue
         else:
-            print(f"Server is ready on {port}")
             sock.shutdown(socket.SHUT_RDWR)
             sock.close()
             return
@@ -215,17 +186,14 @@ def _wait_for_server(port, timeout=5):
 
 
 def _server_fixture(server):
-    def fixture(capsys, unused_port_factory):
+    def fixture(unused_port_factory):
         lock = multiprocessing.Lock()
         lock.acquire()
 
         port = unused_port_factory()
 
-        print("Starting server at", port)
-
-        with capsys.disabled():
-            server_proc = multiprocessing.Process(target=server, args=(lock, port))
-            server_proc.start()
+        server_proc = multiprocessing.Process(target=server, args=(lock, port))
+        server_proc.start()
 
         lock.acquire()
 
@@ -241,12 +209,66 @@ def _server_fixture(server):
     return fixture
 
 
-asgi_grpc_server = pytest.fixture(_server_fixture(_asgi_helloworld_server))
-wsgi_grpc_server = pytest.fixture(_server_fixture(_wsgi_helloworld_server))
+def _sync_channel_fixture(server, channel, stub):
+    def fixture(unused_port_factory):
+        make_server = contextlib.contextmanager(_server_fixture(server))
+        with make_server(unused_port_factory) as port:
+            with channel(f"localhost:{port}") as chan:
+                yield stub(chan)
 
-asgi_benchmark_grpc_server = pytest.fixture(_server_fixture(_asgi_benchmark_server))
-wsgi_benchmark_grpc_server = pytest.fixture(_server_fixture(_wsgi_benchmark_server))
-grpcio_benchmark_grpc_server = pytest.fixture(_server_fixture(_grpcio_benchmark_server))
+    return fixture
 
-asgi_helloworld_application = _asgi_helloworld_application()
-asgi_benchmark_application = _asgi_benchmark_application()
+
+def _async_channel_fixture(server, channel, stub):
+    async def fixture(unused_port_factory):
+        make_server = contextlib.contextmanager(_server_fixture(server))
+        with make_server(unused_port_factory) as port:
+            async with channel(f"localhost:{port}") as chan:
+                yield stub(chan)
+
+    return fixture
+
+
+asgi_greeter_server = pytest.fixture(_server_fixture(_asgi_helloworld_server))
+wsgi_greeter_server = pytest.fixture(_server_fixture(_wsgi_helloworld_server))
+
+asgi_benchmark_server = pytest.fixture(_server_fixture(_asgi_benchmark_server))
+grpcio_benchmark_server = pytest.fixture(_server_fixture(_grpcio_benchmark_server))
+wsgi_benchmark_server = pytest.fixture(_server_fixture(_wsgi_benchmark_server))
+
+wsgi_greeter = pytest.fixture(
+    _sync_channel_fixture(
+        _wsgi_helloworld_server,
+        sonora.client.insecure_web_channel,
+        helloworld_pb2_grpc.GreeterStub,
+    )
+)
+asgi_greeter = pytest.fixture(
+    _async_channel_fixture(
+        _asgi_helloworld_server,
+        sonora.aio.insecure_web_channel,
+        helloworld_pb2_grpc.GreeterStub,
+    )
+)
+
+asgi_benchmark = pytest.fixture(
+    _async_channel_fixture(
+        _asgi_benchmark_server,
+        sonora.aio.insecure_web_channel,
+        benchmark_pb2_grpc.BenchmarkServiceStub,
+    )
+)
+wsgi_benchmark = pytest.fixture(
+    _sync_channel_fixture(
+        _wsgi_benchmark_server,
+        sonora.client.insecure_web_channel,
+        benchmark_pb2_grpc.BenchmarkServiceStub,
+    )
+)
+grpcio_benchmark = pytest.fixture(
+    _sync_channel_fixture(
+        _grpcio_benchmark_server,
+        grpc.insecure_channel,
+        benchmark_pb2_grpc.BenchmarkServiceStub,
+    )
+)
