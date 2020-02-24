@@ -23,7 +23,7 @@ TESTS_REQUIRED = [
     "pytest-asyncio",
     "pytest-benchmark",
     "requests",
-    "daphne",
+    "bjoern",
     "uvicorn",
     "aiohttp[speedups]",
 ]

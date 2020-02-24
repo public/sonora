@@ -4,8 +4,8 @@ import multiprocessing
 import os
 import socket
 import time
-from wsgiref.simple_server import make_server
 
+import bjoern
 import grpc
 import pytest
 import sonora.aio
@@ -21,19 +21,18 @@ FORMAT_STRING = "Hello, {request.name}!"
 def _asgi_helloworld_server(lock, port):
     lock.release()
     os.execvp(
-        "daphne", ["daphne", f"-p{port}", "tests.conftest:asgi_helloworld_application"]
+        "uvicorn",
+        [
+            "uvicorn",
+            "--port",
+            f"{port}",
+            "--no-access-log",
+            "tests.conftest:asgi_helloworld_application",
+        ],
     )
 
 
-def _asgi_daphne_benchmark_server(lock, port):
-    lock.release()
-    os.execvp(
-        "daphne",
-        ["daphne", f"-p{port}", "-v0", "tests.conftest:asgi_benchmark_application"],
-    )
-
-
-def _asgi_uvicorn_benchmark_server(lock, port):
+def _asgi_benchmark_server(lock, port):
     lock.release()
     os.execvp(
         "uvicorn",
@@ -68,11 +67,10 @@ def _wsgi_helloworld_server(lock, port):
             context.abort(grpc.StatusCode.ABORTED, "test aborting")
 
     grpc_wsgi_app = sonora.wsgi.grpcWSGI(None)
-
-    with make_server("127.0.0.1", port, grpc_wsgi_app) as httpd:
-        helloworld_pb2_grpc.add_GreeterServicer_to_server(Greeter(), grpc_wsgi_app)
-        lock.release()
-        httpd.serve_forever()
+    helloworld_pb2_grpc.add_GreeterServicer_to_server(Greeter(), grpc_wsgi_app)
+    bjoern.listen(grpc_wsgi_app, "localhost", port)
+    lock.release()
+    bjoern.run()
 
 
 def _asgi_helloworld_application():
@@ -130,16 +128,12 @@ def _wsgi_benchmark_server(lock, port):
             raise NotImplementedError()
 
     grpc_wsgi_app = sonora.wsgi.grpcWSGI(None)
-
-    with make_server("127.0.0.1", port, grpc_wsgi_app) as httpd:
-        benchmark_pb2_grpc.add_BenchmarkServiceServicer_to_server(
-            Benchmark(), grpc_wsgi_app
-        )
-
-        httpd.RequestHandlerClass.log_request = lambda *args, **kwargs: None
-
-        lock.release()
-        httpd.serve_forever()
+    benchmark_pb2_grpc.add_BenchmarkServiceServicer_to_server(
+        Benchmark(), grpc_wsgi_app
+    )
+    bjoern.listen(grpc_wsgi_app, "localhost", port)
+    lock.release()
+    bjoern.run()
 
 
 def _asgi_benchmark_application():
@@ -194,7 +188,7 @@ def _grpcio_benchmark_server(lock, port):
         def StreamingBothWays(self, request, context):
             raise NotImplementedError()
 
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+    server = grpc.server(futures.ThreadPoolExecutor(max_workers=1))
     benchmark_pb2_grpc.add_BenchmarkServiceServicer_to_server(Benchmark(), server)
     server.add_insecure_port(f"localhost:{port}")
     lock.release()
@@ -250,9 +244,7 @@ def _server_fixture(server):
 asgi_grpc_server = pytest.fixture(_server_fixture(_asgi_helloworld_server))
 wsgi_grpc_server = pytest.fixture(_server_fixture(_wsgi_helloworld_server))
 
-asgi_benchmark_grpc_server = pytest.fixture(
-    _server_fixture(_asgi_uvicorn_benchmark_server)
-)
+asgi_benchmark_grpc_server = pytest.fixture(_server_fixture(_asgi_benchmark_server))
 wsgi_benchmark_grpc_server = pytest.fixture(_server_fixture(_wsgi_benchmark_server))
 grpcio_benchmark_grpc_server = pytest.fixture(_server_fixture(_grpcio_benchmark_server))
 
