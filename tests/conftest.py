@@ -107,6 +107,41 @@ def _asgi_helloworld_application():
     return grpc_asgi_app
 
 
+def _wsgi_benchmark_server(lock, port):
+    class Benchmark(benchmark_pb2_grpc.BenchmarkServiceServicer):
+        def UnaryCall(self, request, context):
+            response = benchmark_pb2.SimpleResponse()
+            response.payload.body = b"\0" * request.response_size
+            return response
+
+        def StreamingCall(self, request, context):
+            raise NotImplementedError()
+
+        def StreamingFromClient(self, request, context):
+            raise NotImplementedError()
+
+        def StreamingFromServer(self, request, context):
+            response = benchmark_pb2.SimpleResponse()
+            response.payload.body = request.payload.body
+            while 1:
+                yield response
+
+        def StreamingBothWays(self, request, context):
+            raise NotImplementedError()
+
+    grpc_wsgi_app = sonora.wsgi.grpcWSGI(None)
+
+    with make_server("127.0.0.1", port, grpc_wsgi_app) as httpd:
+        benchmark_pb2_grpc.add_BenchmarkServiceServicer_to_server(
+            Benchmark(), grpc_wsgi_app
+        )
+
+        httpd.RequestHandlerClass.log_request = lambda *args, **kwargs: None
+
+        lock.release()
+        httpd.serve_forever()
+
+
 def _asgi_benchmark_application():
     class Benchmark(benchmark_pb2_grpc.BenchmarkServiceServicer):
         async def UnaryCall(self, request, context):
@@ -218,6 +253,7 @@ wsgi_grpc_server = pytest.fixture(_server_fixture(_wsgi_helloworld_server))
 asgi_benchmark_grpc_server = pytest.fixture(
     _server_fixture(_asgi_uvicorn_benchmark_server)
 )
+wsgi_benchmark_grpc_server = pytest.fixture(_server_fixture(_wsgi_benchmark_server))
 grpcio_benchmark_grpc_server = pytest.fixture(_server_fixture(_grpcio_benchmark_server))
 
 asgi_helloworld_application = _asgi_helloworld_application()
