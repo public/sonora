@@ -125,7 +125,6 @@ def _asgi_benchmark_application():
             response.payload.body = request.payload.body
             while 1:
                 yield response
-                await asyncio.sleep(0)
 
         async def StreamingBothWays(self, request, context):
             raise NotImplementedError()
