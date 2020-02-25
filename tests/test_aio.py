@@ -30,34 +30,22 @@ async def test_helloworld_sayhelloslowly_with(asgi_greeter_server):
 
 
 @pytest.mark.asyncio
-async def test_helloworld_sayhelloslowly_with_timeout(asgi_greeter_server):
-    async with sonora.aio.insecure_web_channel(
-        f"http://localhost:{asgi_greeter_server}"
-    ) as channel:
-        stub = helloworld_pb2_grpc.GreeterStub(channel)
+async def test_helloworld_streamtimeout(asgi_greeter):
+    request = helloworld_pb2.HelloRequest(name="client timeout")
 
-        request = helloworld_pb2.HelloRequest(name="client timeout")
+    with pytest.raises(grpc.RpcError) as exc:
+        with asgi_greeter.StreamTimeout(request, timeout=0) as call:
+            response = await call.read()
 
-        with pytest.raises(grpc.RpcError) as exc:
-            with stub.SayHelloSlowly(request, timeout=0.0000001) as call:
-                response = await call.read()
+            while response:
+                await call.read()
 
-                while response:
-                    await call.read()
-
-        assert exc.value.code() == grpc.StatusCode.DEADLINE_EXCEEDED
-        assert exc.value.details() == "request timed out at the client"
+    assert exc.value.code() == grpc.StatusCode.DEADLINE_EXCEEDED
 
 
 @pytest.mark.asyncio
-async def test_helloworld_sayhello_timeout_async(asgi_greeter_server):
-    async with sonora.aio.insecure_web_channel(
-        f"http://localhost:{asgi_greeter_server}"
-    ) as channel:
-        stub = helloworld_pb2_grpc.GreeterStub(channel)
-
-        request = helloworld_pb2.HelloRequest(name="client timeout")
-        with pytest.raises(grpc.RpcError) as exc:
-            await stub.SayHello(request, timeout=0.0000001)
-        assert exc.value.code() == grpc.StatusCode.DEADLINE_EXCEEDED
-        assert exc.value.details() == "request timed out at the client"
+async def test_helloworld_unarytimeout(asgi_greeter):
+    request = helloworld_pb2.HelloRequest(name="client timeout")
+    with pytest.raises(grpc.RpcError) as exc:
+        await asgi_greeter.UnaryTimeout(request, timeout=0)
+    assert exc.value.code() == grpc.StatusCode.DEADLINE_EXCEEDED
