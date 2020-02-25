@@ -1,0 +1,110 @@
+// Copyright 2015 gRPC authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// An integration test service that covers all the method signature permutations
+// of unary/streaming requests/responses.
+syntax = "proto3";
+
+package benchmark;
+
+message BoolValue {
+  // The bool value.
+  bool value = 1;
+}
+
+// The type of payload that should be returned.
+enum PayloadType {
+  // Compressable text format.
+  COMPRESSABLE = 0;
+}
+
+// A block of data, to simply increase gRPC message size.
+message Payload {
+  // The type of data in body.
+  PayloadType type = 1;
+  // Primary contents of payload.
+  bytes body = 2;
+}
+
+// A protobuf representation for grpc status. This is used by test
+// clients to specify a status that the server should attempt to return.
+message EchoStatus {
+  int32 code = 1;
+  string message = 2;
+}
+
+// Unary request.
+message SimpleRequest {
+  // Desired payload type in the response from the server.
+  // If response_type is RANDOM, server randomly chooses one from other formats.
+  PayloadType response_type = 1;
+
+  // Desired payload size in the response from the server.
+  int32 response_size = 2;
+
+  // Optional input payload sent along with the request.
+  Payload payload = 3;
+
+  // Whether SimpleResponse should include username.
+  bool fill_username = 4;
+
+  // Whether SimpleResponse should include OAuth scope.
+  bool fill_oauth_scope = 5;
+
+  // Whether to request the server to compress the response. This field is
+  // "nullable" in order to interoperate seamlessly with clients not able to
+  // implement the full compression tests by introspecting the call to verify
+  // the response's compression status.
+  BoolValue response_compressed = 6;
+
+  // Whether server should return a given status
+  EchoStatus response_status = 7;
+
+  // Whether the server should expect this request to be compressed.
+  BoolValue expect_compressed = 8;
+}
+
+// Unary response, as configured by the request.
+message SimpleResponse {
+  // Payload to increase message size.
+  Payload payload = 1;
+  // The user the request came from, for verifying authentication was
+  // successful when the client expected it.
+  string username = 2;
+  // OAuth scope.
+  string oauth_scope = 3;
+}
+
+service BenchmarkService {
+  // One request followed by one response.
+  // The server returns the client payload as-is.
+  rpc UnaryCall(SimpleRequest) returns (SimpleResponse);
+
+  // Repeated sequence of one request followed by one response.
+  // Should be called streaming ping-pong
+  // The server returns the client payload as-is on each response
+  rpc StreamingCall(stream SimpleRequest) returns (stream SimpleResponse);
+
+  // Single-sided unbounded streaming from client to server
+  // The server returns the client payload as-is once the client does WritesDone
+  rpc StreamingFromClient(stream SimpleRequest) returns (SimpleResponse);
+
+  // Single-sided unbounded streaming from server to client
+  // The server repeatedly returns the client payload as-is
+  rpc StreamingFromServer(SimpleRequest) returns (stream SimpleResponse);
+
+  // Two-sided unbounded streaming between server to client
+  // Both sides send the content of their own choice to the other
+  rpc StreamingBothWays(stream SimpleRequest) returns (stream SimpleResponse);
+}

@@ -2,77 +2,46 @@ from google.protobuf.empty_pb2 import Empty
 import grpc
 import pytest
 
-import sonora.client
-import sonora.protocol
-import sonora.wsgi
-
-from tests import helloworld_pb2, helloworld_pb2_grpc
+from tests import helloworld_pb2
 
 
-def test_helloworld_sayhello(wsgi_grpc_server):
-    with sonora.client.insecure_web_channel(
-        f"http://localhost:{wsgi_grpc_server}"
-    ) as channel:
-        stub = helloworld_pb2_grpc.GreeterStub(channel)
-
-        for name in ("you", "world"):
-            request = helloworld_pb2.HelloRequest(name=name)
-            response = stub.SayHello(request)
-            assert response.message != name
-            assert name in response.message
+def test_helloworld_sayhello(wsgi_greeter):
+    for name in ("you", "world"):
+        request = helloworld_pb2.HelloRequest(name=name)
+        response = wsgi_greeter.SayHello(request)
+        assert response.message != name
+        assert name in response.message
 
 
-def test_helloworld_sayhello_timeout(wsgi_grpc_server):
-    with sonora.client.insecure_web_channel(
-        f"http://localhost:{wsgi_grpc_server}"
-    ) as channel:
-        stub = helloworld_pb2_grpc.GreeterStub(channel)
-
-        request = helloworld_pb2.HelloRequest(name="timeout")
-
-        with pytest.raises(grpc.RpcError) as exc:
-            stub.SayHello(request, timeout=0.0000001)
-
-        assert exc.value.code() == grpc.StatusCode.DEADLINE_EXCEEDED
+def test_helloworld_unarytimeout(wsgi_greeter):
+    request = helloworld_pb2.TimeoutRequest(seconds=0.1)
+    with pytest.raises(grpc.RpcError) as exc:
+        wsgi_greeter.UnaryTimeout(request, timeout=0.001)
+    assert exc.value.code() == grpc.StatusCode.DEADLINE_EXCEEDED
 
 
-def test_helloworld_sayhelloslowly(wsgi_grpc_server):
-    with sonora.client.insecure_web_channel(
-        f"http://localhost:{wsgi_grpc_server}"
-    ) as channel:
-        stub = helloworld_pb2_grpc.GreeterStub(channel)
+def test_helloworld_streamtimeout(wsgi_greeter):
+    request = helloworld_pb2.TimeoutRequest(seconds=0.1)
+    response = wsgi_greeter.StreamTimeout(request, timeout=0.001)
 
-        for name in ("you", "world"):
-            request = helloworld_pb2.HelloRequest(name=name)
-            response = stub.SayHelloSlowly(request)
-            message = "".join(r.message for r in response)
-            assert message != name
-            assert name in message
+    with pytest.raises(grpc.RpcError) as exc:
+        for r in response:
+            pass
+    assert exc.value.code() == grpc.StatusCode.DEADLINE_EXCEEDED
 
 
-def test_helloworld_sayhelloslowly_timeout(wsgi_grpc_server):
-    with sonora.client.insecure_web_channel(
-        f"http://localhost:{wsgi_grpc_server}"
-    ) as channel:
-        stub = helloworld_pb2_grpc.GreeterStub(channel)
-
-        request = helloworld_pb2.HelloRequest(name="timeout")
-        response = stub.SayHelloSlowly(request, timeout=0.0000001)
-
-        with pytest.raises(grpc.RpcError) as exc:
-            for r in response:
-                pass
-        assert exc.value.code() == grpc.StatusCode.DEADLINE_EXCEEDED
+def test_helloworld_sayhelloslowly(wsgi_greeter):
+    for name in ("you", "world"):
+        request = helloworld_pb2.HelloRequest(name=name)
+        response = wsgi_greeter.SayHelloSlowly(request)
+        message = "".join(r.message for r in response)
+        assert message != name
+        assert name in message
 
 
-def test_helloworld_abort(wsgi_grpc_server):
-    with sonora.client.insecure_web_channel(
-        f"http://localhost:{wsgi_grpc_server}"
-    ) as channel:
-        stub = helloworld_pb2_grpc.GreeterStub(channel)
+def test_helloworld_abort(wsgi_greeter):
+    with pytest.raises(grpc.RpcError) as exc:
+        wsgi_greeter.Abort(Empty())
 
-        with pytest.raises(grpc.RpcError) as exc:
-            stub.Abort(Empty())
-
-        assert exc.value.code() == grpc.StatusCode.ABORTED
-        assert exc.value.details() == "test aborting"
+    assert exc.value.code() == grpc.StatusCode.ABORTED
+    assert exc.value.details() == "test aborting"

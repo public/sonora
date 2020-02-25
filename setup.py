@@ -21,8 +21,11 @@ TESTS_REQUIRED = [
     "pytest",
     "pytest-mockservers",
     "pytest-asyncio",
+    "pytest-benchmark",
     "requests",
-    "daphne",
+    "bjoern",
+    "uvicorn",
+    "aiohttp[speedups]",
 ]
 
 EXTRAS = {"tests": TESTS_REQUIRED}

@@ -124,6 +124,7 @@ class grpcASGI(grpc.Server):
                         "headers": headers,
                     }
                 )
+
                 await send(
                     {"type": "http.response.body", "body": body, "more_body": True}
                 )
@@ -132,9 +133,30 @@ class grpcASGI(grpc.Server):
                     body = protocol.wrap_message(
                         False, False, rpc_method.response_serializer(message)
                     )
-                    await send(
-                        {"type": "http.response.body", "body": body, "more_body": True}
+
+                    send_task = asyncio.create_task(
+                        send(
+                            {
+                                "type": "http.response.body",
+                                "body": body,
+                                "more_body": True,
+                            }
+                        )
                     )
+
+                    recv_task = asyncio.create_task(receive())
+
+                    done, pending = await asyncio.wait(
+                        {send_task, recv_task}, return_when=asyncio.FIRST_COMPLETED
+                    )
+
+                    if recv_task in done:
+                        send_task.cancel()
+                        result = recv_task.result()
+                        if result["type"] == "http.disconnect":
+                            break
+                    else:
+                        recv_task.cancel()
 
                 trailers = [("grpc-status", str(context.code.value[0]))]
                 if context.details:

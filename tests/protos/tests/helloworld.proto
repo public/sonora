@@ -13,6 +13,10 @@ service Greeter {
   rpc SayHelloSlowly (HelloRequest) returns (stream HelloReply) {}
 
   rpc Abort(google.protobuf.Empty) returns (google.protobuf.Empty) {}
+
+  rpc UnaryTimeout(TimeoutRequest) returns (google.protobuf.Empty) {}
+
+  rpc StreamTimeout(TimeoutRequest) returns (stream google.protobuf.Empty) {}
 }
 
 // The request message containing the user's name.
@@ -23,4 +27,8 @@ message HelloRequest {
 // The response message containing the greetings
 message HelloReply {
   string message = 1;
+}
+
+message TimeoutRequest {
+  float seconds = 1;
 }

@@ -1,4 +1,5 @@
 import asyncio
+
 import aiohttp
 import grpc.experimental.aio
 
@@ -12,6 +13,9 @@ def insecure_web_channel(url):
 
 class WebChannel:
     def __init__(self, url):
+        if not url.startswith("http") and "://" not in url:
+            url = f"http://{url}"
+
         self._url = url
         self._session = aiohttp.ClientSession()
 
@@ -35,10 +39,10 @@ class WebChannel:
         )
 
     def stream_unary(self, path, request_serializer, response_deserializer):
-        raise NotImplementedError()
+        return sonora.client.NotImplementedMulticallable()
 
     def stream_stream(self, path, request_serializer, response_deserializer):
-        raise NotImplementedError()
+        return sonora.client.NotImplementedMulticallable()
 
 
 class UnaryUnaryMulticallable(sonora.client.Multicallable):
@@ -133,7 +137,6 @@ class UnaryStreamCall(Call):
     @Call._raise_timeout(asyncio.TimeoutError)
     async def __aiter__(self):
         response = await self._get_response()
-
         async for trailers, _, message in protocol.unwrap_message_stream_async(
             response.content
         ):

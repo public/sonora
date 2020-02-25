@@ -14,6 +14,9 @@ def insecure_web_channel(url):
 
 class WebChannel:
     def __init__(self, url):
+        if not url.startswith("http") and "://" not in url:
+            url = f"http://{url}"
+
         self._url = url
         self._session = requests.Session()
 
@@ -34,10 +37,10 @@ class WebChannel:
         )
 
     def stream_unary(self, path, request_serializer, response_deserializer):
-        raise NotImplementedError()
+        return NotImplementedMulticallable()
 
     def stream_stream(self, path, request_serializer, response_deserializer):
-        raise NotImplementedError()
+        return NotImplementedMulticallable()
 
 
 class Multicallable:
@@ -55,6 +58,17 @@ class Multicallable:
 
     def future(self, request):
         raise NotImplementedError()
+
+
+class NotImplementedMulticallable(Multicallable):
+    def __init__(self):
+        pass
+
+    def __call__(self, request, timeout=None):
+        def nope(*args, **kwargs):
+            raise NotImplementedError()
+
+        return nope
 
 
 class UnaryUnaryMulticallable(Multicallable):

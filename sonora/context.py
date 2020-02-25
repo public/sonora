@@ -40,7 +40,7 @@ class gRPCContext(grpc.ServicerContext):
 
     def time_remaining(self):
         if self._deadline is not None:
-            return max(time.monotonic() - self._deadline, 0)
+            return max(self._deadline - time.monotonic(), 0)
         else:
             return None
 
