@@ -106,11 +106,11 @@ class grpcWSGI(grpc.Server):
         _, _, message = protocol.unrwap_message(request_data)
         request_proto = rpc_method.request_deserializer(message)
 
-        resp = []
+        resp = None
 
         try:
             if not rpc_method.request_streaming and not rpc_method.response_streaming:
-                resp = [rpc_method.unary_unary(request_proto, context)]
+                resp = rpc_method.unary_unary(request_proto, context)
             elif not rpc_method.request_streaming and rpc_method.response_streaming:
                 resp = rpc_method.unary_stream(request_proto, context)
             else:
@@ -124,30 +124,43 @@ class grpcWSGI(grpc.Server):
             ("Access-Control-Expose-Headers", "*"),
         ]
 
-        # For unary responses we need to immediately set the status headers.
-
         if not rpc_method.response_streaming:
+            if resp:
+                content = protocol.wrap_message(
+                    False, False, rpc_method.response_serializer(resp)
+                )
+            else:
+                content = b""
+
+            headers.append(("content-length", str(len(content))))
+
             headers.append(("grpc-status", str(context.code.value[0])))
             if context.details:
                 headers.append(("grpc-message", quote(context.details)))
 
-        start_response(_grpc_status_to_wsgi_status(context.code), headers)
+            start_response(_grpc_status_to_wsgi_status(context.code), headers)
+            yield content
+            return
 
-        for message in resp:
-            yield protocol.wrap_message(
-                False, False, rpc_method.response_serializer(message)
-            )
+        else:
 
-        # For streaming responses only send the status header as a trailer.
+            start_response(_grpc_status_to_wsgi_status(context.code), headers)
 
-        if rpc_method.response_streaming:
-            trailers = [("grpc-status", str(context.code.value[0]))]
-            if context.details:
-                trailers.append(("grpc-message", quote(context.details)))
+            for message in resp:
+                yield protocol.wrap_message(
+                    False, False, rpc_method.response_serializer(message)
+                )
 
-            trailer_message = protocol.pack_trailers(trailers)
+            # For streaming responses only send the status header as a trailer.
 
-            yield protocol.wrap_message(True, False, trailer_message)
+            if rpc_method.response_streaming:
+                trailers = [("grpc-status", str(context.code.value[0]))]
+                if context.details:
+                    trailers.append(("grpc-message", quote(context.details)))
+
+                trailer_message = protocol.pack_trailers(trailers)
+
+                yield protocol.wrap_message(True, False, trailer_message)
 
     def _do_cors_preflight(self, environ, start_response):
         start_response(
