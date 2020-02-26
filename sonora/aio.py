@@ -17,6 +17,7 @@ class WebChannel:
             url = f"http://{url}"
 
         self._url = url
+
         self._session = aiohttp.ClientSession()
 
     async def __aenter__(self):
@@ -79,6 +80,10 @@ class Call(sonora.client.Call):
         if self._response:
             self._response.release()
 
+    def __del__(self):
+        if self._response:
+            self._response.release()
+
     async def _get_response(self):
         if self._response is None:
             timeout = aiohttp.ClientTimeout(total=self._timeout)
@@ -137,6 +142,7 @@ class UnaryStreamCall(Call):
     @Call._raise_timeout(asyncio.TimeoutError)
     async def __aiter__(self):
         response = await self._get_response()
+
         async for trailers, _, message in protocol.unwrap_message_stream_async(
             response.content
         ):
