@@ -33,11 +33,12 @@ def test_asgi_streamingfromserver(asgi_benchmark, event_loop, benchmark, size):
         recv_bytes = 0
         n = 0
 
-        async for message in asgi_benchmark.StreamingFromServer(request):
-            recv_bytes += len(message.payload.body)
-            n += 1
-            if n >= chunk_count:
-                break
+        with asgi_benchmark.StreamingFromServer(request) as stream:
+            async for message in stream:
+                recv_bytes += len(message.payload.body)
+                n += 1
+                if n >= chunk_count:
+                    break
 
         assert recv_bytes == size * chunk_count
 

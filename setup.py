@@ -14,7 +14,7 @@ EMAIL = "alexs@prol.etari.at"
 AUTHOR = "Alex Stapleton"
 REQUIRES_PYTHON = ">=3.7.0"
 
-REQUIRED = ["grpcio", "requests", "aiohttp", "async-timeout"]
+REQUIRED = ["grpcio", "urllib3", "aiohttp", "async-timeout"]
 
 TESTS_REQUIRED = [
     "grpcio-tools",
@@ -22,7 +22,6 @@ TESTS_REQUIRED = [
     "pytest-mockservers",
     "pytest-asyncio",
     "pytest-benchmark",
-    "requests",
     "bjoern",
     "uvicorn",
     "aiohttp[speedups]",

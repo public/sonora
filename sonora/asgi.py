@@ -178,6 +178,8 @@ class grpcASGI(grpc.Server):
                     False, False, rpc_method.response_serializer(message)
                 )
 
+                headers.append((b"content-length", str(len(body)).encode()))
+
                 await send(
                     {
                         "type": "http.response.start",

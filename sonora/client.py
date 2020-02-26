@@ -1,9 +1,12 @@
 import functools
 import inspect
+import io
 from urllib.parse import urljoin
+import warnings
 
 import grpc
-import requests
+import urllib3
+import urllib3.exceptions
 
 from sonora import protocol
 
@@ -18,13 +21,13 @@ class WebChannel:
             url = f"http://{url}"
 
         self._url = url
-        self._session = requests.Session()
+        self._session = urllib3.PoolManager()
 
     def __enter__(self):
         return self
 
     def __exit__(self, exception_type, exception_value, traceback):
-        self._session.close()
+        self._session.clear()
 
     def unary_unary(self, path, request_serializer, response_deserializer):
         return UnaryUnaryMulticallable(
@@ -168,38 +171,47 @@ class Call:
 
 
 class UnaryUnaryCall(Call):
-    @Call._raise_timeout(requests.exceptions.Timeout)
+    @Call._raise_timeout(urllib3.exceptions.TimeoutError)
     def __call__(self):
-        with self._session.post(
+        self._response = self._session.request(
+            "POST",
             self._url,
-            data=protocol.wrap_message(False, False, self._serializer(self._request)),
+            body=protocol.wrap_message(False, False, self._serializer(self._request)),
             headers=self._metadata,
             timeout=self._timeout,
-        ) as self._response:
-            protocol.raise_for_status(self._response.headers)
-            trailers, _, message = protocol.unrwap_message(self._response.content)
-            assert not trailers
-            return self._deserializer(message)
+        )
+
+        protocol.raise_for_status(self._response.headers)
+        _, _, message = protocol.unrwap_message(self._response.data)
+
+        return self._deserializer(message)
 
 
 class UnaryStreamCall(Call):
-    @Call._raise_timeout(requests.exceptions.Timeout)
+    @Call._raise_timeout(urllib3.exceptions.TimeoutError)
     def __iter__(self):
-        with self._session.post(
+        self._response = self._session.request(
+            "POST",
             self._url,
-            data=protocol.wrap_message(False, False, self._serializer(self._request)),
+            body=protocol.wrap_message(False, False, self._serializer(self._request)),
             headers=self._metadata,
             timeout=self._timeout,
-            stream=True,
-        ) as self._response:
-            for trailers, _, message in protocol.unwrap_message_stream(
-                self._response.raw
-            ):
-                if trailers:
-                    break
-                else:
-                    yield self._deserializer(message)
+            preload_content=False,
+        )
+        self._response.auto_close = False
 
-            protocol.raise_for_status(
-                self._response.headers, message if trailers else None
-            )
+        stream = io.BufferedReader(self._response, buffer_size=16384)
+
+        for trailers, _, message in protocol.unwrap_message_stream(stream):
+            if trailers:
+                break
+            else:
+                yield self._deserializer(message)
+
+        self._response.release_conn()
+
+        protocol.raise_for_status(self._response.headers, message if trailers else None)
+
+    def __del__(self):
+        if self._response and self._response.connection:
+            self._response.close()

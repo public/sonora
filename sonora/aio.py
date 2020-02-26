@@ -77,12 +77,12 @@ class Call(sonora.client.Call):
         return self
 
     def __exit__(self, exception_type, exception_value, traceback):
-        if self._response:
-            self._response.release()
+        if self._response and not self._response.closed:
+            self._response.close()
 
     def __del__(self):
-        if self._response:
-            self._response.release()
+        if self._response and not self._response.closed:
+            self._response.close()
 
     async def _get_response(self):
         if self._response is None:
@@ -111,6 +111,8 @@ class UnaryUnaryCall(Call):
 
         data = yield from response.read().__await__()
 
+        response.release()
+
         if data:
             trailers, _, message = protocol.unrwap_message(data)
 
@@ -135,6 +137,8 @@ class UnaryStreamCall(Call):
             else:
                 return self._deserializer(message)
 
+        response.release()
+
         protocol.raise_for_status(response.headers, message if trailers else None)
 
         return grpc.experimental.aio.EOF
@@ -150,5 +154,7 @@ class UnaryStreamCall(Call):
                 break
             else:
                 yield self._deserializer(message)
+
+        response.release()
 
         protocol.raise_for_status(response.headers, message if trailers else None)
