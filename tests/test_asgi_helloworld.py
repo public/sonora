@@ -44,6 +44,20 @@ async def test_helloworld_sayhelloslowly(asgi_greeter):
 
 
 @pytest.mark.asyncio
+async def test_helloworld_sayhelloslowly_read(asgi_greeter):
+    for name in ("you", "world"):
+        request = helloworld_pb2.HelloRequest(name=name)
+        message = ""
+        with asgi_greeter.SayHelloSlowly(request) as stream:
+            chunk = await stream.read()
+            while chunk:
+                message += chunk.message
+                chunk = await stream.read()
+        assert message != name
+        assert name in message
+
+
+@pytest.mark.asyncio
 async def test_helloworld_abort(asgi_greeter):
     with pytest.raises(grpc.RpcError) as exc:
         await asgi_greeter.Abort(Empty())

@@ -7,12 +7,12 @@ from tests import benchmark_pb2, benchmark_pb2_grpc
 
 @pytest.mark.parametrize("size", [1, 100, 10000, 1000000])
 def test_grpcio_unarycall(grpcio_benchmark, benchmark, size):
-    def perf():
-        request = benchmark_pb2.SimpleRequest(response_size=size)
+    request = benchmark_pb2.SimpleRequest(response_size=size)
 
-        for _ in range(1000):
+    def perf():
+        for _ in range(10):
             message = grpcio_benchmark.UnaryCall(request)
-            assert len(message.payload.body) == size
+        assert len(message.payload.body) == size
 
     benchmark(perf)
 
@@ -20,25 +20,21 @@ def test_grpcio_unarycall(grpcio_benchmark, benchmark, size):
 @pytest.mark.parametrize("size", [1, 100, 10000, 1000000])
 def test_grpcio_streamingfromserver(grpcio_benchmark, benchmark, size):
 
-    request_count = 10
-    chunk_count = 100
+    chunk_count = 10
+
+    request = benchmark_pb2.SimpleRequest(response_size=size)
+    request.payload.body = b"\0" * size
 
     def perf():
-        request = benchmark_pb2.SimpleRequest(response_size=size)
-        request.payload.body = b"\0" * size
-
         recv_bytes = 0
+        n = 0
 
-        for _ in range(request_count):
-            n = 0
-            for message in grpcio_benchmark.StreamingFromServer(request):
-                recv_bytes += len(message.payload.body)
-                n += 1
-                if n >= chunk_count:
-                    break
+        for message in grpcio_benchmark.StreamingFromServer(request):
+            recv_bytes += len(message.payload.body)
+            n += 1
+            if n >= chunk_count:
+                break
 
-            assert n == chunk_count
-
-        assert recv_bytes == size * request_count * chunk_count
+        assert recv_bytes == size * chunk_count
 
     benchmark(perf)

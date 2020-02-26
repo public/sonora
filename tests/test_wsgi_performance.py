@@ -5,49 +5,34 @@ from tests import benchmark_pb2, benchmark_pb2_grpc
 
 
 @pytest.mark.parametrize("size", [1, 100, 10000, 1000000])
-def test_wsgi_unarycall(wsgi_benchmark_server, benchmark, size):
+def test_wsgi_unarycall(wsgi_benchmark, benchmark, size):
+    request = benchmark_pb2.SimpleRequest(response_size=size)
+
     def perf():
-        with sonora.client.insecure_web_channel(
-            f"http://localhost:{wsgi_benchmark_server}"
-        ) as channel:
-            stub = benchmark_pb2_grpc.BenchmarkServiceStub(channel)
-
-            request = benchmark_pb2.SimpleRequest(response_size=size)
-
-            for _ in range(1000):
-                message = stub.UnaryCall(request)
-                assert len(message.payload.body) == size
+        for _ in range(10):
+            message = wsgi_benchmark.UnaryCall(request)
+        assert len(message.payload.body) == size
 
     benchmark(perf)
 
 
 @pytest.mark.parametrize("size", [1, 100, 10000, 1000000])
-def test_wsgi_streamingfromserver(wsgi_benchmark_server, benchmark, size):
+def test_wsgi_streamingfromserver(wsgi_benchmark, benchmark, size):
+    chunk_count = 10
 
-    request_count = 10
-    chunk_count = 100
+    request = benchmark_pb2.SimpleRequest(response_size=size)
+    request.payload.body = b"\0" * size
 
     def perf():
-        with sonora.client.insecure_web_channel(
-            f"http://localhost:{wsgi_benchmark_server}"
-        ) as channel:
-            stub = benchmark_pb2_grpc.BenchmarkServiceStub(channel)
+        recv_bytes = 0
+        n = 0
 
-            request = benchmark_pb2.SimpleRequest(response_size=size)
-            request.payload.body = b"\0" * size
+        for message in wsgi_benchmark.StreamingFromServer(request):
+            recv_bytes += len(message.payload.body)
+            n += 1
+            if n >= chunk_count:
+                break
 
-            recv_bytes = 0
-
-            for _ in range(request_count):
-                n = 0
-                for message in stub.StreamingFromServer(request):
-                    recv_bytes += len(message.payload.body)
-                    n += 1
-                    if n >= chunk_count:
-                        break
-
-                assert n == chunk_count
-
-            assert recv_bytes == size * request_count * chunk_count
+        assert recv_bytes == size * chunk_count
 
     benchmark(perf)
