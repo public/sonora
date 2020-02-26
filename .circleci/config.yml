@@ -16,7 +16,13 @@ jobs:
       - checkout
       - run: sudo pip install tox
       - run: sudo apt-get install python3-dev libev-dev
-      - run: tox -e py37
+      - restore_cache:
+          key: benchmarks-{{ .Environment.CIRCLE_JOB }}-master
+      - run: tox -e py37 -- --benchmark-save=${CIRCLE_BRANCH} --benchmark-compare
+      - save_cache:
+          key: benchmarks-{{ .Environment.CIRCLE_JOB }}-{{ .Branch }}-{{ .Revision }}
+          paths:
+          - .benchmarks
   test-py38:
     docker:
       - image: circleci/python:3.8
@@ -24,7 +30,13 @@ jobs:
       - checkout
       - run: sudo pip install tox
       - run: sudo apt-get install python3-dev libev-dev
-      - run: tox -e py38
+      - restore_cache:
+          key: benchmarks-{{ .Environment.CIRCLE_JOB }}-master
+      - run: tox -e py38 -- --benchmark-save=${CIRCLE_BRANCH} --benchmark-compare
+      - save_cache:
+          key: benchmarks-{{ .Environment.CIRCLE_JOB }}-{{ .Branch }}-{{ .Revision }}
+          paths:
+          - .benchmarks
   black-py37:
     docker:
       - image: circleci/python:3.7
