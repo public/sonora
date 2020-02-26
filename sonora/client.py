@@ -208,7 +208,9 @@ class UnaryStreamCall(Call):
                 else:
                     yield self._deserializer(message)
 
-            protocol.raise_for_status(self._response.headers, message if trailers else None)
+            protocol.raise_for_status(
+                self._response.headers, message if trailers else None
+            )
 
         finally:
             self._response.close()
