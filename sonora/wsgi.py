@@ -1,3 +1,4 @@
+import base64
 from collections import namedtuple
 from urllib.parse import quote
 
@@ -96,7 +97,17 @@ class grpcWSGI(grpc.Server):
         except KeyError:
             timeout = None
 
-        return gRPCContext(timeout)
+        metadata = []
+        for key, value in environ.items():
+            if key.startswith("HTTP_"):
+                header = key[5:].lower().replace("_", "-")
+
+                if header.endswith("-bin"):
+                    value = base64.b64decode(value)
+
+                metadata.append((header, value))
+
+        return gRPCContext(timeout, metadata)
 
     def _do_grpc_request(self, rpc_method, environ, start_response):
         request_data = self._read_request(environ)

@@ -4,7 +4,7 @@ import grpc
 
 
 class gRPCContext(grpc.ServicerContext):
-    def __init__(self, timeout=None):
+    def __init__(self, timeout=None, metadata=None):
         self.code = grpc.StatusCode.OK
         self.details = None
 
@@ -14,6 +14,8 @@ class gRPCContext(grpc.ServicerContext):
             self._deadline = time.monotonic() + timeout
         else:
             self._deadline = None
+
+        self._metadata = metadata or tuple()
 
     def set_code(self, code):
         self.code = code
@@ -45,6 +47,12 @@ class gRPCContext(grpc.ServicerContext):
             return None
 
     def invocation_metadata(self):
+        return self._metadata
+
+    def send_initial_metadata(self, initial_metadata):
+        raise NotImplementedError()
+
+    def set_trailing_metadata(self, trailing_metadata):
         raise NotImplementedError()
 
     def peer(self):
@@ -57,12 +65,6 @@ class gRPCContext(grpc.ServicerContext):
         raise NotImplementedError()
 
     def auth_context(self):
-        raise NotImplementedError()
-
-    def send_initial_metadata(self, initial_metadata):
-        raise NotImplementedError()
-
-    def set_trailing_metadata(self, trailing_metadata):
         raise NotImplementedError()
 
     def add_callback(self):

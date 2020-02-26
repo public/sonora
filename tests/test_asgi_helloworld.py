@@ -64,3 +64,18 @@ async def test_helloworld_abort(asgi_greeter):
 
     assert exc.value.code() == grpc.StatusCode.ABORTED
     assert exc.value.details() == "test aborting"
+
+
+@pytest.mark.asyncio
+async def test_helloworld_metadata(asgi_greeter):
+    request = helloworld_pb2.HelloRequest(name="metadata-key")
+    result = await asgi_greeter.HelloMetadata(
+        request, metadata=[("metadata-key", "honk")]
+    )
+    assert repr("honk") == result.message
+
+    request = helloworld_pb2.HelloRequest(name="metadata-key-bin")
+    result = await asgi_greeter.HelloMetadata(
+        request, metadata=[("metadata-key-bin", b"\0\1\2\3")]
+    )
+    assert repr(b"\0\1\2\3") == result.message

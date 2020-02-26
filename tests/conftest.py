@@ -43,6 +43,15 @@ class SyncGreeter(helloworld_pb2_grpc.GreeterServicer):
             time.sleep(request.seconds)
             yield empty_pb2.Empty()
 
+    def HelloMetadata(self, request, context):
+        for key, value in context.invocation_metadata():
+            if key == request.name:
+                break
+        else:
+            raise KeyError(request.name)
+
+        return helloworld_pb2.HelloReply(message=repr(value))
+
 
 class AsyncGreeter(helloworld_pb2_grpc.GreeterServicer):
     async def SayHello(self, request, context):
@@ -65,6 +74,15 @@ class AsyncGreeter(helloworld_pb2_grpc.GreeterServicer):
         while 1:
             await asyncio.sleep(request.seconds)
             yield empty_pb2.Empty()
+
+    async def HelloMetadata(self, request, context):
+        for key, value in context.invocation_metadata():
+            if key == request.name:
+                break
+        else:
+            raise KeyError(request.name)
+
+        return helloworld_pb2.HelloReply(message=repr(value))
 
 
 class SyncBenchmark(benchmark_pb2_grpc.BenchmarkServiceServicer):

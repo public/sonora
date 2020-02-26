@@ -1,3 +1,4 @@
+import base64
 import struct
 from urllib.parse import unquote
 
@@ -115,6 +116,20 @@ def unpack_trailers(message):
 
         trailers.append((k, v))
     return trailers
+
+
+def encode_headers(metadata):
+    for header, value in metadata:
+        if isinstance(value, bytes):
+            if not header.endswith("-bin"):
+                raise ValueError("binary headers must have the '-bin' suffix")
+
+            value = base64.b64encode(value).decode("ascii")
+
+        if isinstance(header, bytes):
+            header = header.decode("ascii")
+
+        yield header, value
 
 
 def grpc_status_to_http_status(code):

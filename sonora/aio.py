@@ -47,11 +47,15 @@ class WebChannel:
 
 
 class UnaryUnaryMulticallable(sonora.client.Multicallable):
-    def __call__(self, request, timeout=None):
+    def __call__(self, request, timeout=None, metadata=None):
+        call_metadata = self._metadata.copy()
+        if metadata is not None:
+            call_metadata.extend(protocol.encode_headers(metadata))
+
         return UnaryUnaryCall(
             request,
             timeout,
-            self._headers,
+            call_metadata,
             self._rpc_url,
             self._session,
             self._serializer,
@@ -60,11 +64,15 @@ class UnaryUnaryMulticallable(sonora.client.Multicallable):
 
 
 class UnaryStreamMulticallable(sonora.client.Multicallable):
-    def __call__(self, request, timeout=None):
+    def __call__(self, request, timeout=None, metadata=None):
+        call_metadata = self._metadata.copy()
+        if metadata is not None:
+            call_metadata.extend(protocol.encode_headers(metadata))
+
         return UnaryStreamCall(
             request,
             timeout,
-            self._headers,
+            call_metadata,
             self._rpc_url,
             self._session,
             self._serializer,
@@ -93,7 +101,7 @@ class Call(sonora.client.Call):
                 data=protocol.wrap_message(
                     False, False, self._serializer(self._request)
                 ),
-                headers=self._metadata,
+                headers=dict(self._metadata),
                 timeout=timeout,
             )
 

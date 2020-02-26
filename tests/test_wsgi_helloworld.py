@@ -25,7 +25,7 @@ def test_helloworld_streamtimeout(wsgi_greeter):
     response = wsgi_greeter.StreamTimeout(request, timeout=0.001)
 
     with pytest.raises(grpc.RpcError) as exc:
-        for r in response:
+        for _ in response:
             pass
     assert exc.value.code() == grpc.StatusCode.DEADLINE_EXCEEDED
 
@@ -45,3 +45,15 @@ def test_helloworld_abort(wsgi_greeter):
 
     assert exc.value.code() == grpc.StatusCode.ABORTED
     assert exc.value.details() == "test aborting"
+
+
+def test_helloworld_metadata(wsgi_greeter):
+    request = helloworld_pb2.HelloRequest(name="metadata-key")
+    result = wsgi_greeter.HelloMetadata(request, metadata=[("metadata-key", "honk")])
+    assert repr("honk") == result.message
+
+    request = helloworld_pb2.HelloRequest(name="metadata-key-bin")
+    result = wsgi_greeter.HelloMetadata(
+        request, metadata=[("metadata-key-bin", b"\0\1\2\3")]
+    )
+    assert repr(b"\0\1\2\3") == result.message

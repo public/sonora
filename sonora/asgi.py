@@ -1,4 +1,5 @@
 import asyncio
+import base64
 from collections import namedtuple
 from collections.abc import AsyncIterator
 from urllib.parse import quote
@@ -70,13 +71,20 @@ class grpcASGI(grpc.Server):
 
     def _create_context(self, scope):
         timeout = None
+        metadata = []
 
         for header, value in scope["headers"]:
-            if header == b"grpc-timeout":
+            if timeout is None and header == b"grpc-timeout":
                 timeout = protocol.parse_timeout(value)
-                break
+            else:
+                if header.endswith(b"-bin"):
+                    value = base64.b64decode(value)
+                else:
+                    value = value.decode("ascii")
 
-        return gRPCContext(timeout)
+                metadata.append((header.decode("ascii"), value))
+
+        return gRPCContext(timeout, metadata)
 
     async def _do_grpc_request(self, rpc_method, context, receive, send):
         request_proto_iterator = (

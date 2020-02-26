@@ -54,7 +54,7 @@ class Multicallable:
         self._path = path
         self._rpc_url = urljoin(url, path)
 
-        self._headers = {"x-user-agent": "grpc-web-python/0.1"}
+        self._metadata = [("x-user-agent", "grpc-web-python/0.1")]
 
         self._serializer = request_serializer
         self._deserializer = request_deserializer
@@ -75,11 +75,17 @@ class NotImplementedMulticallable(Multicallable):
 
 
 class UnaryUnaryMulticallable(Multicallable):
-    def __call__(self, request, timeout=None):
+    def __call__(self, request, timeout=None, metadata=None):
+        call_metadata = self._metadata.copy()
+        if metadata is not None:
+            call_metadata.extend(protocol.encode_headers(metadata))
+
+        print("EHADERS", call_metadata)
+
         return UnaryUnaryCall(
             request,
             timeout,
-            self._headers,
+            call_metadata,
             self._rpc_url,
             self._session,
             self._serializer,
@@ -88,11 +94,15 @@ class UnaryUnaryMulticallable(Multicallable):
 
 
 class UnaryStreamMulticallable(Multicallable):
-    def __call__(self, request, timeout=None):
+    def __call__(self, request, timeout=None, metadata=None):
+        call_metadata = self._metadata.copy()
+        if metadata is not None:
+            call_metadata.extend(protocol.encode_headers(metadata))
+
         return UnaryStreamCall(
             request,
             timeout,
-            self._headers,
+            call_metadata,
             self._rpc_url,
             self._session,
             self._serializer,
@@ -114,7 +124,7 @@ class Call:
         self._response = None
 
         if timeout is not None:
-            self._metadata["grpc-timeout"] = protocol.serialize_timeout(timeout)
+            self._metadata.append(("grpc-timeout", protocol.serialize_timeout(timeout)))
 
     @classmethod
     def _raise_timeout(cls, exc):
@@ -177,7 +187,7 @@ class UnaryUnaryCall(Call):
             "POST",
             self._url,
             body=protocol.wrap_message(False, False, self._serializer(self._request)),
-            headers=self._metadata,
+            headers=dict(self._metadata),
             timeout=self._timeout,
         )
 
@@ -194,7 +204,7 @@ class UnaryStreamCall(Call):
             "POST",
             self._url,
             body=protocol.wrap_message(False, False, self._serializer(self._request)),
-            headers=self._metadata,
+            headers=dict(self._metadata),
             timeout=self._timeout,
             preload_content=False,
         )
