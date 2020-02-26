@@ -2,6 +2,7 @@ import functools
 import inspect
 import io
 from urllib.parse import urljoin
+import warnings
 
 import grpc
 import urllib3
@@ -199,18 +200,20 @@ class UnaryStreamCall(Call):
         )
         self._response.auto_close = False
 
-        try:
-            stream = io.BufferedReader(self._response, buffer_size=16384)
+        stream = io.BufferedReader(self._response, buffer_size=16384)
 
-            for trailers, _, message in protocol.unwrap_message_stream(stream):
-                if trailers:
-                    break
-                else:
-                    yield self._deserializer(message)
+        for trailers, _, message in protocol.unwrap_message_stream(stream):
+            if trailers:
+                break
+            else:
+                yield self._deserializer(message)
 
-            protocol.raise_for_status(
-                self._response.headers, message if trailers else None
-            )
+        self._response.release_conn()
 
-        finally:
+        protocol.raise_for_status(
+            self._response.headers, message if trailers else None
+        )
+
+    def __del__(self):
+        if self._response and self._response.connection:
             self._response.close()
