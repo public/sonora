@@ -210,9 +210,7 @@ class UnaryStreamCall(Call):
 
         self._response.release_conn()
 
-        protocol.raise_for_status(
-            self._response.headers, message if trailers else None
-        )
+        protocol.raise_for_status(self._response.headers, message if trailers else None)
 
     def __del__(self):
         if self._response and self._response.connection:
