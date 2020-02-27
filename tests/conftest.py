@@ -64,7 +64,7 @@ class AsyncGreeter(helloworld_pb2_grpc.GreeterServicer):
             yield helloworld_pb2.HelloReply(message=char)
 
     async def Abort(self, request, context):
-        context.abort(grpc.StatusCode.ABORTED, "test aborting")
+        await context.abort(grpc.StatusCode.ABORTED, "test aborting")
 
     async def UnaryTimeout(self, request, context):
         while 1:
