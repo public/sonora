@@ -138,6 +138,9 @@ class grpcASGI(grpc.Server):
             False, False, rpc_method.response_serializer(message)
         )
 
+        if context._initial_metadata:
+            headers.extend(context._initial_metadata)
+
         await send(
             {"type": "http.response.start", "status": status, "headers": headers}
         )
@@ -170,6 +173,10 @@ class grpcASGI(grpc.Server):
         trailers = [("grpc-status", str(context.code.value[0]))]
         if context.details:
             trailers.append(("grpc-message", quote(context.details)))
+
+        if context._trailing_metadata:
+            trailers.extend(context._trailing_metadata)
+
         trailer_message = protocol.pack_trailers(trailers)
         body = protocol.wrap_message(True, False, trailer_message)
         await send({"type": "http.response.body", "body": body, "more_body": False})
@@ -184,19 +191,37 @@ class grpcASGI(grpc.Server):
         if context.details:
             headers.append((b"grpc-message", quote(context.details)))
 
+        if context._initial_metadata:
+            headers.extend(context._initial_metadata)
+
         if message is not None:
-            body = protocol.wrap_message(
+            message_data = protocol.wrap_message(
                 False, False, rpc_method.response_serializer(message)
             )
         else:
-            body = b""
+            message_data = b""
 
-        headers.append((b"content-length", str(len(body)).encode()))
+        if context._trailing_metadata:
+            trailers = context._trailing_metadata
+            trailer_message = protocol.pack_trailers(trailers)
+
+            trailer_data = protocol.wrap_message(True, False, trailer_message)
+        else:
+            trailer_data = b""
+
+        content_length = len(message_data) + len(trailer_data)
+
+        headers.append((b"content-length", str(content_length).encode()))
 
         await send(
             {"type": "http.response.start", "status": status, "headers": headers}
         )
-        await send({"type": "http.response.body", "body": body, "more_body": False})
+        await send(
+            {"type": "http.response.body", "body": message_data, "more_body": True}
+        )
+        await send(
+            {"type": "http.response.body", "body": trailer_data, "more_body": False}
+        )
 
     async def _do_grpc_error(self, context, send):
         headers = [
@@ -290,10 +315,13 @@ class ServicerContext(grpc.ServicerContext):
         raise grpc.RpcError()
 
     async def send_initial_metadata(self, initial_metadata):
-        self._initial_metadata = initial_metadata
+        self._initial_metadata = [
+            (key.encode("ascii"), value.encode("ascii"))
+            for key, value in protocol.encode_headers(initial_metadata)
+        ]
 
     async def set_trailing_metadata(self, trailing_metadata):
-        self._trailing_metadata = trailing_metadata
+        self._trailing_metadata = protocol.encode_headers(trailing_metadata)
 
     def invocation_metadata(self):
         return self._invocation_metadata
