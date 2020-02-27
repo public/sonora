@@ -76,7 +76,7 @@ class grpcWSGI(grpc.Server):
 
         context = self._create_context(environ)
 
-        _, _, message = protocol.unrwap_message(request_data)
+        _, _, message = protocol.unwrap_message(request_data)
         request_proto = rpc_method.request_deserializer(message)
 
         resp = None

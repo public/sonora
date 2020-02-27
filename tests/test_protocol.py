@@ -7,7 +7,7 @@ from sonora import protocol
 def test_wrapping():
     data = b"foobar"
     wrapped = protocol.wrap_message(False, False, data)
-    assert protocol.unrwap_message(wrapped) == (False, False, data)
+    assert protocol.unwrap_message(wrapped) == (False, False, data)
 
 
 def test_unwrapping_stream():

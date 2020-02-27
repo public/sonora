@@ -29,7 +29,7 @@ def wrap_message(trailers, compressed, message):
     )
 
 
-def unrwap_message(message):
+def unwrap_message(message):
     flags, length = struct.unpack(_HEADER_FORMAT, message[:_HEADER_LENGTH])
     data = message[_HEADER_LENGTH : _HEADER_LENGTH + length]
 
@@ -104,13 +104,13 @@ def pack_trailers(trailers):
     message = []
     for k, v in trailers:
         k = k.lower()
-        message.append("{0}: {1}\r\n".format(k, v).encode("utf8"))
+        message.append(f"{k}: {v}\r\n".encode("ascii"))
     return b"".join(message)
 
 
 def unpack_trailers(message):
     trailers = []
-    for line in message.decode("utf8").splitlines():
+    for line in message.decode("ascii").splitlines():
         k, v = line.split(":", 1)
         v = v.strip()
 
