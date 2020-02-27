@@ -47,11 +47,13 @@ def test_helloworld_abort(wsgi_greeter):
     assert exc.value.details() == "test aborting"
 
 
-def test_helloworld_metadata(wsgi_greeter):
+def test_helloworld_unary_metadata_ascii(wsgi_greeter):
     request = helloworld_pb2.HelloRequest(name="metadata-key")
     result = wsgi_greeter.HelloMetadata(request, metadata=[("metadata-key", "honk")])
     assert repr("honk") == result.message
 
+
+def test_helloworld_unary_metadata_binary(wsgi_greeter):
     request = helloworld_pb2.HelloRequest(name="metadata-key-bin")
     result = wsgi_greeter.HelloMetadata(
         request, metadata=[("metadata-key-bin", b"\0\1\2\3")]

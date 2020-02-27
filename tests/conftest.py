@@ -82,6 +82,16 @@ class AsyncGreeter(helloworld_pb2_grpc.GreeterServicer):
         else:
             raise KeyError(request.name)
 
+        await context.send_initial_metadata(
+            (f"initial-{key}", repr(value))
+            for key, value in context.invocation_metadata()
+        )
+
+        await context.set_trailing_metadata(
+            (f"trailing-{key}", repr(value))
+            for key, value in context.invocation_metadata()
+        )
+
         return helloworld_pb2.HelloReply(message=repr(value))
 
 
