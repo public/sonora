@@ -1,4 +1,5 @@
 import asyncio
+import io
 
 import aiohttp
 import grpc.experimental.aio
@@ -109,6 +110,13 @@ class Call(sonora.client.Call):
 
         return self._response
 
+    async def initial_metadata(self):
+        response = await self._get_response()
+        return response.headers.items()
+
+    async def trailing_metadata(self):
+        return self._trailers
+
 
 class UnaryUnaryCall(Call):
     @Call._raise_timeout(asyncio.TimeoutError)
@@ -121,15 +129,32 @@ class UnaryUnaryCall(Call):
 
         response.release()
 
-        if data:
-            trailers, _, message = protocol.unrwap_message(data)
+        if not data:
+            return
 
+        buffer = io.BytesIO(data)
+
+        messages = protocol.unwrap_message_stream(buffer)
+
+        trailers, _, message = next(messages)
+
+        if trailers:
+            self._trailers = protocol.unpack_trailers(message)
+            return
+        else:
+            result = self._deserializer(message)
+
+        try:
+            trailers, _, message = next(messages)
+        except StopIteration:
+            pass
+        else:
             if trailers:
-                raise NotImplementedError(
-                    "Trailers are not supported for UnaryUnary RPCs"
-                )
+                self._trailers = protocol.unpack_trailers(message)
+            else:
+                raise ValueError("UnaryUnary should only return a single message")
 
-            return self._deserializer(message)
+        return result
 
 
 class UnaryStreamCall(Call):
@@ -141,6 +166,7 @@ class UnaryStreamCall(Call):
             response.content
         ):
             if trailers:
+                self._trailers = protocol.unpack_trailers(message)
                 break
             else:
                 return self._deserializer(message)
@@ -159,6 +185,7 @@ class UnaryStreamCall(Call):
             response.content
         ):
             if trailers:
+                self._trailers = protocol.unpack_trailers(message)
                 break
             else:
                 yield self._deserializer(message)

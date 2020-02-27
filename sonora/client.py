@@ -80,8 +80,6 @@ class UnaryUnaryMulticallable(Multicallable):
         if metadata is not None:
             call_metadata.extend(protocol.encode_headers(metadata))
 
-        print("EHADERS", call_metadata)
-
         return UnaryUnaryCall(
             request,
             timeout,
@@ -122,6 +120,7 @@ class Call:
         self._serializer = serializer
         self._deserializer = deserializer
         self._response = None
+        self._trailers = None
 
         if timeout is not None:
             self._metadata.append(("grpc-timeout", protocol.serialize_timeout(timeout)))
@@ -192,7 +191,7 @@ class UnaryUnaryCall(Call):
         )
 
         protocol.raise_for_status(self._response.headers)
-        _, _, message = protocol.unrwap_message(self._response.data)
+        _, _, message = protocol.unwrap_message(self._response.data)
 
         return self._deserializer(message)
 
