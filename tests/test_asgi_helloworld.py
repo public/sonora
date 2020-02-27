@@ -69,17 +69,15 @@ async def test_helloworld_abort(asgi_greeter):
 @pytest.mark.asyncio
 async def test_helloworld_unary_metadata_ascii(asgi_greeter):
     request = helloworld_pb2.HelloRequest(name="metadata-key")
-    call = asgi_greeter.HelloMetadata(
-        request, metadata=[("metadata-key", "honk")]
-    )
+    call = asgi_greeter.HelloMetadata(request, metadata=[("metadata-key", "honk")])
     result = await call
     assert repr("honk") == result.message
 
     initial_metadata = await call.initial_metadata()
     trailing_metadata = await call.trailing_metadata()
 
-    assert dict(initial_metadata)['initial-metadata-key'] == repr("honk")
-    assert dict(trailing_metadata)['trailing-metadata-key'] == repr("honk")
+    assert dict(initial_metadata)["initial-metadata-key"] == repr("honk")
+    assert dict(trailing_metadata)["trailing-metadata-key"] == repr("honk")
 
 
 @pytest.mark.asyncio
@@ -94,5 +92,5 @@ async def test_helloworld_unary_metadata_binary(asgi_greeter):
     initial_metadata = await call.initial_metadata()
     trailing_metadata = await call.trailing_metadata()
 
-    assert dict(initial_metadata)['initial-metadata-key-bin'] == repr(b"\0\1\2\3")
-    assert dict(trailing_metadata)['trailing-metadata-key-bin'] == repr(b"\0\1\2\3")
+    assert dict(initial_metadata)["initial-metadata-key-bin"] == repr(b"\0\1\2\3")
+    assert dict(trailing_metadata)["trailing-metadata-key-bin"] == repr(b"\0\1\2\3")
