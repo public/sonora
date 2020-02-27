@@ -1,11 +1,11 @@
 import base64
 from collections import namedtuple
+import time
 from urllib.parse import quote
 
 import grpc
 
 from sonora import protocol
-from sonora.context import gRPCContext
 
 
 _HandlerCallDetails = namedtuple(
@@ -53,44 +53,6 @@ class grpcWSGI(grpc.Server):
 
         return None
 
-    def _read_request(self, environ):
-        try:
-            content_length = environ.get("CONTENT_LENGTH")
-            if content_length:
-                content_length = int(content_length)
-            else:
-                content_length = None
-        except ValueError:
-            content_length = None
-
-        stream = environ["wsgi.input"]
-
-        transfer_encoding = environ.get("HTTP_TRANSFER_ENCODING")
-
-        if transfer_encoding == "chunked":
-            buffer = []
-            line = stream.readline()
-
-            while line:
-                if not line:
-                    break
-
-                size = line.split(b";", 1)[0]
-
-                if size == "\r\n":
-                    break
-
-                chunk_size = int(size, 16)
-
-                if chunk_size == 0:
-                    break
-
-                buffer.append(stream.read(chunk_size + 2)[:-2])
-                line = stream.readline()
-            return b"".join(buffer)
-        else:
-            return stream.read(content_length or 5)
-
     def _create_context(self, environ):
         try:
             timeout = protocol.parse_timeout(environ["HTTP_GRPC_TIMEOUT"])
@@ -107,7 +69,7 @@ class grpcWSGI(grpc.Server):
 
                 metadata.append((header, value))
 
-        return gRPCContext(timeout, metadata)
+        return ServicerContext(timeout, metadata)
 
     def _do_grpc_request(self, rpc_method, environ, start_response):
         request_data = self._read_request(environ)
@@ -124,6 +86,8 @@ class grpcWSGI(grpc.Server):
                 resp = rpc_method.unary_unary(request_proto, context)
             elif not rpc_method.request_streaming and rpc_method.response_streaming:
                 resp = rpc_method.unary_stream(request_proto, context)
+                if context.time_remaining() is not None:
+                    resp = _timeout_generator(context, resp)
             else:
                 raise NotImplementedError()
         except grpc.RpcError:
@@ -135,43 +99,82 @@ class grpcWSGI(grpc.Server):
             ("Access-Control-Expose-Headers", "*"),
         ]
 
-        if not rpc_method.response_streaming:
-            if resp:
-                content = protocol.wrap_message(
-                    False, False, rpc_method.response_serializer(resp)
-                )
-            else:
-                content = b""
-
-            headers.append(("content-length", str(len(content))))
-
-            headers.append(("grpc-status", str(context.code.value[0])))
-            if context.details:
-                headers.append(("grpc-message", quote(context.details)))
-
-            start_response(_grpc_status_to_wsgi_status(context.code), headers)
-            yield content
-            return
+        if rpc_method.response_streaming:
+            yield from self._do_streaming_response(
+                rpc_method, start_response, context, headers, resp
+            )
 
         else:
+            yield from self._do_unary_response(
+                rpc_method, start_response, context, headers, resp
+            )
 
-            start_response(_grpc_status_to_wsgi_status(context.code), headers)
+    def _do_streaming_response(
+        self, rpc_method, start_response, context, headers, resp
+    ):
 
+        try:
+            first_message = next(resp)
+        except grpc.RpcError:
+            pass
+
+        if context._initial_metadata:
+            headers.extend(protocol.encode_headers(context._initial_metadata))
+
+        start_response(_grpc_status_to_wsgi_status(context.code), headers)
+
+        yield protocol.wrap_message(
+            False, False, rpc_method.response_serializer(first_message)
+        )
+
+        try:
             for message in resp:
                 yield protocol.wrap_message(
                     False, False, rpc_method.response_serializer(message)
                 )
+        except grpc.RpcError:
+            pass
 
-            # For streaming responses only send the status header as a trailer.
+        trailers = [("grpc-status", str(context.code.value[0]))]
 
-            if rpc_method.response_streaming:
-                trailers = [("grpc-status", str(context.code.value[0]))]
-                if context.details:
-                    trailers.append(("grpc-message", quote(context.details)))
+        if context.details:
+            trailers.append(("grpc-message", quote(context.details)))
 
-                trailer_message = protocol.pack_trailers(trailers)
+        if context._trailing_metadata:
+            trailers.extend(protocol.encode_headers(context._trailing_metadata))
 
-                yield protocol.wrap_message(True, False, trailer_message)
+        trailer_message = protocol.pack_trailers(trailers)
+
+        yield protocol.wrap_message(True, False, trailer_message)
+
+    def _do_unary_response(self, rpc_method, start_response, context, headers, resp):
+        if resp:
+            content = protocol.wrap_message(
+                False, False, rpc_method.response_serializer(resp)
+            )
+        else:
+            content = b""
+
+        headers.append(("content-length", str(len(content))))
+
+        headers.append(("grpc-status", str(context.code.value[0])))
+
+        if context.details:
+            headers.append(("grpc-message", quote(context.details)))
+
+        if context._initial_metadata:
+            headers.extend(protocol.encode_headers(context._initial_metadata))
+
+        start_response(_grpc_status_to_wsgi_status(context.code), headers)
+
+        yield content
+
+        if context._trailing_metadata:
+            trailers = protocol.encode_headers(context._trailing_metadata)
+
+            trailer_message = protocol.pack_trailers(trailers)
+
+            yield protocol.wrap_message(True, False, trailer_message)
 
     def _do_cors_preflight(self, environ, start_response):
         start_response(
@@ -213,6 +216,120 @@ class grpcWSGI(grpc.Server):
             start_response("404 Not Found", [])
             return []
 
+    def _read_request(self, environ):
+        try:
+            content_length = environ.get("CONTENT_LENGTH")
+            if content_length:
+                content_length = int(content_length)
+            else:
+                content_length = None
+        except ValueError:
+            content_length = None
+
+        stream = environ["wsgi.input"]
+
+        transfer_encoding = environ.get("HTTP_TRANSFER_ENCODING")
+
+        if transfer_encoding == "chunked":
+            buffer = []
+            line = stream.readline()
+
+            while line:
+                if not line:
+                    break
+
+                size = line.split(b";", 1)[0]
+
+                if size == "\r\n":
+                    break
+
+                chunk_size = int(size, 16)
+
+                if chunk_size == 0:
+                    break
+
+                buffer.append(stream.read(chunk_size + 2)[:-2])
+                line = stream.readline()
+            return b"".join(buffer)
+        else:
+            return stream.read(content_length or 5)
+
+
+class ServicerContext(grpc.ServicerContext):
+    def __init__(self, timeout=None, metadata=None):
+        self.code = grpc.StatusCode.OK
+        self.details = None
+
+        self._timeout = timeout
+
+        if timeout is not None:
+            self._deadline = time.monotonic() + timeout
+        else:
+            self._deadline = None
+
+        self._invocation_metadata = metadata or tuple()
+        self._initial_metadata = None
+        self._trailing_metadata = None
+
+    def set_code(self, code):
+        self.code = code
+
+    def set_details(self, details):
+        self.details = details
+
+    def abort(self, code, details):
+        if code == grpc.StatusCode.OK:
+            raise ValueError()
+
+        self.set_code(code)
+        self.set_details(details)
+
+        raise grpc.RpcError()
+
+    def abort_with_status(self, status):
+        if status == grpc.StatusCode.OK:
+            raise ValueError()
+
+        self.set_code(status)
+
+        raise grpc.RpcError()
+
+    def time_remaining(self):
+        if self._deadline is not None:
+            return max(self._deadline - time.monotonic(), 0)
+        else:
+            return None
+
+    def invocation_metadata(self):
+        return self._invocation_metadata
+
+    def send_initial_metadata(self, initial_metadata):
+        self._initial_metadata = initial_metadata
+
+    def set_trailing_metadata(self, trailing_metadata):
+        self._trailing_metadata = trailing_metadata
+
+    def peer(self):
+        raise NotImplementedError()
+
+    def peer_identities(self):
+        raise NotImplementedError()
+
+    def peer_identity_key(self):
+        raise NotImplementedError()
+
+    def auth_context(self):
+        raise NotImplementedError()
+
+    def add_callback(self):
+        raise NotImplementedError()
+
+    def cancel(self):
+        raise NotImplementedError()
+
+    def is_active(self):
+        raise NotImplementedError()
+
 
 def _grpc_status_to_wsgi_status(code):
     if code == grpc.StatusCode.OK:
@@ -233,3 +350,13 @@ def _grpc_status_to_wsgi_status(code):
         return "403 Forbidden"
     else:
         return "500 Internal Server Error"
+
+
+def _timeout_generator(context, gen):
+    while 1:
+        if context.time_remaining() > 0:
+            yield next(gen)
+        else:
+            context.code = grpc.StatusCode.DEADLINE_EXCEEDED
+            context.details = "request timed out at the server"
+            raise grpc.RpcError()
