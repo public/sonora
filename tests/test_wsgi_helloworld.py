@@ -49,13 +49,25 @@ def test_helloworld_abort(wsgi_greeter):
 
 def test_helloworld_unary_metadata_ascii(wsgi_greeter):
     request = helloworld_pb2.HelloRequest(name="metadata-key")
-    result = wsgi_greeter.HelloMetadata(request, metadata=[("metadata-key", "honk")])
+    result, call = wsgi_greeter.HelloMetadata.with_call(request, metadata=[("metadata-key", "honk")])
     assert repr("honk") == result.message
+
+    initial_metadata = call.initial_metadata()
+    trailing_metadata = call.trailing_metadata()
+
+    assert dict(initial_metadata)["initial-metadata-key"] == repr("honk")
+    assert dict(trailing_metadata)["trailing-metadata-key"] == repr("honk")
 
 
 def test_helloworld_unary_metadata_binary(wsgi_greeter):
     request = helloworld_pb2.HelloRequest(name="metadata-key-bin")
-    result = wsgi_greeter.HelloMetadata(
+    result, call = wsgi_greeter.HelloMetadata.with_call(
         request, metadata=[("metadata-key-bin", b"\0\1\2\3")]
     )
     assert repr(b"\0\1\2\3") == result.message
+
+    initial_metadata = call.initial_metadata()
+    trailing_metadata = call.trailing_metadata()
+
+    assert dict(initial_metadata)["initial-metadata-key-bin"] == repr(b"\0\1\2\3")
+    assert dict(trailing_metadata)["trailing-metadata-key-bin"] == repr(b"\0\1\2\3")
