@@ -64,3 +64,51 @@ async def test_helloworld_abort(asgi_greeter):
 
     assert exc.value.code() == grpc.StatusCode.ABORTED
     assert exc.value.details() == "test aborting"
+
+
+@pytest.mark.asyncio
+async def test_helloworld_unary_metadata_ascii(asgi_greeter):
+    request = helloworld_pb2.HelloRequest(name="metadata-key")
+    call = asgi_greeter.HelloMetadata(request, metadata=[("metadata-key", "honk")])
+    result = await call
+    assert repr("honk") == result.message
+
+    initial_metadata = await call.initial_metadata()
+    trailing_metadata = await call.trailing_metadata()
+
+    assert dict(initial_metadata)["initial-metadata-key"] == repr("honk")
+    assert dict(trailing_metadata)["trailing-metadata-key"] == repr("honk")
+
+
+@pytest.mark.asyncio
+async def test_helloworld_unary_metadata_binary(asgi_greeter):
+    request = helloworld_pb2.HelloRequest(name="metadata-key-bin")
+    call = asgi_greeter.HelloMetadata(
+        request, metadata=[("metadata-key-bin", b"\0\1\2\3")]
+    )
+    result = await call
+    assert repr(b"\0\1\2\3") == result.message
+
+    initial_metadata = await call.initial_metadata()
+    trailing_metadata = await call.trailing_metadata()
+
+    assert dict(initial_metadata)["initial-metadata-key-bin"] == repr(b"\0\1\2\3")
+    assert dict(trailing_metadata)["trailing-metadata-key-bin"] == repr(b"\0\1\2\3")
+
+
+@pytest.mark.asyncio
+async def test_helloworld_stream_metadata_ascii(asgi_greeter):
+    request = helloworld_pb2.HelloRequest(name="metadata-key")
+    result = asgi_greeter.HelloStreamMetadata(
+        request, metadata=[("metadata-key", "honk")]
+    )
+
+    message = "".join([m.message async for m in result])
+
+    assert "honk" == message
+
+    initial_metadata = await result.initial_metadata()
+    trailing_metadata = await result.trailing_metadata()
+
+    assert dict(initial_metadata)["initial-metadata-key"] == repr("honk")
+    assert dict(trailing_metadata)["trailing-metadata-key"] == repr("honk")

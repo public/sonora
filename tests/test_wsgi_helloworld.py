@@ -25,7 +25,7 @@ def test_helloworld_streamtimeout(wsgi_greeter):
     response = wsgi_greeter.StreamTimeout(request, timeout=0.001)
 
     with pytest.raises(grpc.RpcError) as exc:
-        for r in response:
+        for _ in response:
             pass
     assert exc.value.code() == grpc.StatusCode.DEADLINE_EXCEEDED
 
@@ -45,3 +45,49 @@ def test_helloworld_abort(wsgi_greeter):
 
     assert exc.value.code() == grpc.StatusCode.ABORTED
     assert exc.value.details() == "test aborting"
+
+
+def test_helloworld_unary_metadata_ascii(wsgi_greeter):
+    request = helloworld_pb2.HelloRequest(name="metadata-key")
+    result, call = wsgi_greeter.HelloMetadata.with_call(
+        request, metadata=[("metadata-key", "honk")]
+    )
+    assert repr("honk") == result.message
+
+    initial_metadata = call.initial_metadata()
+    trailing_metadata = call.trailing_metadata()
+
+    assert dict(initial_metadata)["initial-metadata-key"] == repr("honk")
+    assert dict(trailing_metadata)["trailing-metadata-key"] == repr("honk")
+
+
+def test_helloworld_unary_metadata_binary(wsgi_greeter):
+    request = helloworld_pb2.HelloRequest(name="metadata-key-bin")
+    result, call = wsgi_greeter.HelloMetadata.with_call(
+        request, metadata=[("metadata-key-bin", b"\0\1\2\3")]
+    )
+    assert repr(b"\0\1\2\3") == result.message
+
+    initial_metadata = call.initial_metadata()
+    trailing_metadata = call.trailing_metadata()
+
+    assert dict(initial_metadata)["initial-metadata-key-bin"] == repr(b"\0\1\2\3")
+    assert dict(trailing_metadata)["trailing-metadata-key-bin"] == repr(b"\0\1\2\3")
+
+
+def test_helloworld_stream_metadata_ascii(wsgi_greeter):
+    request = helloworld_pb2.HelloRequest(name="metadata-key")
+    result = wsgi_greeter.HelloStreamMetadata(
+        request, metadata=[("metadata-key", "honk")]
+    )
+
+    message = "".join(m.message for m in result)
+
+    assert "honk" == message
+
+    initial_metadata = result.initial_metadata()
+    trailing_metadata = result.trailing_metadata()
+    print("initial_metadata", initial_metadata)
+    print("trailing_metadata", trailing_metadata)
+    assert dict(initial_metadata)["initial-metadata-key"] == repr("honk")
+    assert dict(trailing_metadata)["trailing-metadata-key"] == repr("honk")

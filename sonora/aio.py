@@ -1,4 +1,5 @@
 import asyncio
+import io
 
 import aiohttp
 import grpc.experimental.aio
@@ -47,11 +48,15 @@ class WebChannel:
 
 
 class UnaryUnaryMulticallable(sonora.client.Multicallable):
-    def __call__(self, request, timeout=None):
+    def __call__(self, request, timeout=None, metadata=None):
+        call_metadata = self._metadata.copy()
+        if metadata is not None:
+            call_metadata.extend(protocol.encode_headers(metadata))
+
         return UnaryUnaryCall(
             request,
             timeout,
-            self._headers,
+            call_metadata,
             self._rpc_url,
             self._session,
             self._serializer,
@@ -60,11 +65,15 @@ class UnaryUnaryMulticallable(sonora.client.Multicallable):
 
 
 class UnaryStreamMulticallable(sonora.client.Multicallable):
-    def __call__(self, request, timeout=None):
+    def __call__(self, request, timeout=None, metadata=None):
+        call_metadata = self._metadata.copy()
+        if metadata is not None:
+            call_metadata.extend(protocol.encode_headers(metadata))
+
         return UnaryStreamCall(
             request,
             timeout,
-            self._headers,
+            call_metadata,
             self._rpc_url,
             self._session,
             self._serializer,
@@ -93,7 +102,7 @@ class Call(sonora.client.Call):
                 data=protocol.wrap_message(
                     False, False, self._serializer(self._request)
                 ),
-                headers=self._metadata,
+                headers=dict(self._metadata),
                 timeout=timeout,
             )
 
@@ -101,27 +110,51 @@ class Call(sonora.client.Call):
 
         return self._response
 
+    async def initial_metadata(self):
+        response = await self._get_response()
+        return response.headers.items()
+
+    async def trailing_metadata(self):
+        return self._trailers
+
 
 class UnaryUnaryCall(Call):
     @Call._raise_timeout(asyncio.TimeoutError)
     def __await__(self):
         response = yield from self._get_response().__await__()
 
-        protocol.raise_for_status(response.headers)
-
         data = yield from response.read().__await__()
 
         response.release()
 
-        if data:
-            trailers, _, message = protocol.unrwap_message(data)
+        if not data:
+            return
 
+        buffer = io.BytesIO(data)
+
+        messages = protocol.unwrap_message_stream(buffer)
+
+        trailers, _, message = next(messages)
+
+        if trailers:
+            self._trailers = protocol.unpack_trailers(message)
+            return
+        else:
+            result = self._deserializer(message)
+
+        try:
+            trailers, _, message = next(messages)
+        except StopIteration:
+            pass
+        else:
             if trailers:
-                raise NotImplementedError(
-                    "Trailers are not supported for UnaryUnary RPCs"
-                )
+                self._trailers = protocol.unpack_trailers(message)
+            else:
+                raise ValueError("UnaryUnary should only return a single message")
 
-            return self._deserializer(message)
+        protocol.raise_for_status(response.headers)
+
+        return result
 
 
 class UnaryStreamCall(Call):
@@ -133,13 +166,14 @@ class UnaryStreamCall(Call):
             response.content
         ):
             if trailers:
+                self._trailers = protocol.unpack_trailers(message)
                 break
             else:
                 return self._deserializer(message)
 
         response.release()
 
-        protocol.raise_for_status(response.headers, message if trailers else None)
+        protocol.raise_for_status(response.headers, self._trailers)
 
         return grpc.experimental.aio.EOF
 
@@ -151,10 +185,11 @@ class UnaryStreamCall(Call):
             response.content
         ):
             if trailers:
+                self._trailers = protocol.unpack_trailers(message)
                 break
             else:
                 yield self._deserializer(message)
 
         response.release()
 
-        protocol.raise_for_status(response.headers, message if trailers else None)
+        protocol.raise_for_status(response.headers, self._trailers)

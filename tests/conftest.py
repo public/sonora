@@ -43,6 +43,45 @@ class SyncGreeter(helloworld_pb2_grpc.GreeterServicer):
             time.sleep(request.seconds)
             yield empty_pb2.Empty()
 
+    def HelloMetadata(self, request, context):
+        for key, value in context.invocation_metadata():
+            if key == request.name:
+                break
+        else:
+            raise KeyError(request.name)
+
+        context.send_initial_metadata(
+            (f"initial-{key}", repr(value))
+            for key, value in context.invocation_metadata()
+        )
+
+        context.set_trailing_metadata(
+            (f"trailing-{key}", repr(value))
+            for key, value in context.invocation_metadata()
+        )
+
+        return helloworld_pb2.HelloReply(message=repr(value))
+
+    def HelloStreamMetadata(self, request, context):
+        for key, value in context.invocation_metadata():
+            if key == request.name:
+                break
+        else:
+            raise KeyError(request.name)
+
+        context.send_initial_metadata(
+            (f"initial-{key}", repr(value))
+            for key, value in context.invocation_metadata()
+        )
+
+        for c in value:
+            yield helloworld_pb2.HelloReply(message=c)
+
+        context.set_trailing_metadata(
+            (f"trailing-{key}", repr(value))
+            for key, value in context.invocation_metadata()
+        )
+
 
 class AsyncGreeter(helloworld_pb2_grpc.GreeterServicer):
     async def SayHello(self, request, context):
@@ -55,7 +94,7 @@ class AsyncGreeter(helloworld_pb2_grpc.GreeterServicer):
             yield helloworld_pb2.HelloReply(message=char)
 
     async def Abort(self, request, context):
-        context.abort(grpc.StatusCode.ABORTED, "test aborting")
+        await context.abort(grpc.StatusCode.ABORTED, "test aborting")
 
     async def UnaryTimeout(self, request, context):
         while 1:
@@ -65,6 +104,45 @@ class AsyncGreeter(helloworld_pb2_grpc.GreeterServicer):
         while 1:
             await asyncio.sleep(request.seconds)
             yield empty_pb2.Empty()
+
+    async def HelloMetadata(self, request, context):
+        for key, value in context.invocation_metadata():
+            if key == request.name:
+                break
+        else:
+            raise KeyError(request.name)
+
+        await context.send_initial_metadata(
+            (f"initial-{key}", repr(value))
+            for key, value in context.invocation_metadata()
+        )
+
+        await context.set_trailing_metadata(
+            (f"trailing-{key}", repr(value))
+            for key, value in context.invocation_metadata()
+        )
+
+        return helloworld_pb2.HelloReply(message=repr(value))
+
+    async def HelloStreamMetadata(self, request, context):
+        for key, value in context.invocation_metadata():
+            if key == request.name:
+                break
+        else:
+            raise KeyError(request.name)
+
+        await context.send_initial_metadata(
+            (f"initial-{key}", repr(value))
+            for key, value in context.invocation_metadata()
+        )
+
+        for c in value:
+            yield helloworld_pb2.HelloReply(message=c)
+
+        await context.set_trailing_metadata(
+            (f"trailing-{key}", repr(value))
+            for key, value in context.invocation_metadata()
+        )
 
 
 class SyncBenchmark(benchmark_pb2_grpc.BenchmarkServiceServicer):

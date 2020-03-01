@@ -54,7 +54,7 @@ class Multicallable:
         self._path = path
         self._rpc_url = urljoin(url, path)
 
-        self._headers = {"x-user-agent": "grpc-web-python/0.1"}
+        self._metadata = [("x-user-agent", "grpc-web-python/0.1")]
 
         self._serializer = request_serializer
         self._deserializer = request_deserializer
@@ -75,24 +75,38 @@ class NotImplementedMulticallable(Multicallable):
 
 
 class UnaryUnaryMulticallable(Multicallable):
-    def __call__(self, request, timeout=None):
-        return UnaryUnaryCall(
+    def __call__(self, request, timeout=None, metadata=None):
+        result, _call = self.with_call(request, timeout, metadata)
+        return result
+
+    def with_call(self, request, timeout=None, metadata=None):
+        call_metadata = self._metadata.copy()
+        if metadata is not None:
+            call_metadata.extend(protocol.encode_headers(metadata))
+
+        call = UnaryUnaryCall(
             request,
             timeout,
-            self._headers,
+            call_metadata,
             self._rpc_url,
             self._session,
             self._serializer,
             self._deserializer,
-        )()
+        )
+
+        return call(), call
 
 
 class UnaryStreamMulticallable(Multicallable):
-    def __call__(self, request, timeout=None):
+    def __call__(self, request, timeout=None, metadata=None):
+        call_metadata = self._metadata.copy()
+        if metadata is not None:
+            call_metadata.extend(protocol.encode_headers(metadata))
+
         return UnaryStreamCall(
             request,
             timeout,
-            self._headers,
+            call_metadata,
             self._rpc_url,
             self._session,
             self._serializer,
@@ -112,9 +126,16 @@ class Call:
         self._serializer = serializer
         self._deserializer = deserializer
         self._response = None
+        self._trailers = None
 
         if timeout is not None:
-            self._metadata["grpc-timeout"] = protocol.serialize_timeout(timeout)
+            self._metadata.append(("grpc-timeout", protocol.serialize_timeout(timeout)))
+
+    def initial_metadata(self):
+        return self._response.headers.items()
+
+    def trailing_metadata(self):
+        return self._trailers
 
     @classmethod
     def _raise_timeout(cls, exc):
@@ -177,14 +198,38 @@ class UnaryUnaryCall(Call):
             "POST",
             self._url,
             body=protocol.wrap_message(False, False, self._serializer(self._request)),
-            headers=self._metadata,
+            headers=dict(self._metadata),
             timeout=self._timeout,
         )
 
-        protocol.raise_for_status(self._response.headers)
-        _, _, message = protocol.unrwap_message(self._response.data)
+        buffer = io.BytesIO(self._response.data)
 
-        return self._deserializer(message)
+        messages = protocol.unwrap_message_stream(buffer)
+
+        try:
+            trailers, _, message = next(messages)
+        except StopIteration:
+            protocol.raise_for_status(self._response.headers)
+            return
+
+        if trailers:
+            self._trailers = protocol.unpack_trailers(message)
+        else:
+            result = self._deserializer(message)
+
+        try:
+            trailers, _, message = next(messages)
+        except StopIteration:
+            pass
+        else:
+            if trailers:
+                self._trailers = protocol.unpack_trailers(message)
+            else:
+                raise ValueError("UnaryUnary should only return a single message")
+
+        protocol.raise_for_status(self._response.headers, self._trailers)
+
+        return result
 
 
 class UnaryStreamCall(Call):
@@ -194,7 +239,7 @@ class UnaryStreamCall(Call):
             "POST",
             self._url,
             body=protocol.wrap_message(False, False, self._serializer(self._request)),
-            headers=self._metadata,
+            headers=dict(self._metadata),
             timeout=self._timeout,
             preload_content=False,
         )
@@ -204,13 +249,14 @@ class UnaryStreamCall(Call):
 
         for trailers, _, message in protocol.unwrap_message_stream(stream):
             if trailers:
+                self._trailers = protocol.unpack_trailers(message)
                 break
             else:
                 yield self._deserializer(message)
 
         self._response.release_conn()
 
-        protocol.raise_for_status(self._response.headers, message if trailers else None)
+        protocol.raise_for_status(self._response.headers, self._trailers)
 
     def __del__(self):
         if self._response and self._response.connection:

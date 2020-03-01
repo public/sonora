@@ -22,6 +22,7 @@ TESTS_REQUIRED = [
     "pytest-mockservers",
     "pytest-asyncio",
     "pytest-benchmark",
+    "hypothesis",
     "bjoern",
     "uvicorn",
     "aiohttp[speedups]",

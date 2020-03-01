@@ -1,13 +1,14 @@
 import asyncio
+import base64
 from collections import namedtuple
 from collections.abc import AsyncIterator
+import time
 from urllib.parse import quote
 
 from async_timeout import timeout
 import grpc
 
 from sonora import protocol
-from sonora.context import gRPCContext
 
 _HandlerCallDetails = namedtuple(
     "_HandlerCallDetails", ("method", "invocation_metadata")
@@ -70,13 +71,20 @@ class grpcASGI(grpc.Server):
 
     def _create_context(self, scope):
         timeout = None
+        metadata = []
 
         for header, value in scope["headers"]:
-            if header == b"grpc-timeout":
+            if timeout is None and header == b"grpc-timeout":
                 timeout = protocol.parse_timeout(value)
-                break
+            else:
+                if header.endswith(b"-bin"):
+                    value = base64.b64decode(value)
+                else:
+                    value = value.decode("ascii")
 
-        return gRPCContext(timeout)
+                metadata.append((header.decode("ascii"), value))
+
+        return ServicerContext(timeout, metadata)
 
     async def _do_grpc_request(self, rpc_method, context, receive, send):
         request_proto_iterator = (
@@ -109,89 +117,110 @@ class grpcASGI(grpc.Server):
 
         try:
             if rpc_method.response_streaming:
-                message = await anext(coroutine)
-
-                status = protocol.grpc_status_to_http_status(context.code)
-
-                body = protocol.wrap_message(
-                    False, False, rpc_method.response_serializer(message)
-                )
-
-                await send(
-                    {
-                        "type": "http.response.start",
-                        "status": status,
-                        "headers": headers,
-                    }
-                )
-
-                await send(
-                    {"type": "http.response.body", "body": body, "more_body": True}
-                )
-
-                async for message in coroutine:
-                    body = protocol.wrap_message(
-                        False, False, rpc_method.response_serializer(message)
-                    )
-
-                    send_task = asyncio.create_task(
-                        send(
-                            {
-                                "type": "http.response.body",
-                                "body": body,
-                                "more_body": True,
-                            }
-                        )
-                    )
-
-                    recv_task = asyncio.create_task(receive())
-
-                    done, pending = await asyncio.wait(
-                        {send_task, recv_task}, return_when=asyncio.FIRST_COMPLETED
-                    )
-
-                    if recv_task in done:
-                        send_task.cancel()
-                        result = recv_task.result()
-                        if result["type"] == "http.disconnect":
-                            break
-                    else:
-                        recv_task.cancel()
-
-                trailers = [("grpc-status", str(context.code.value[0]))]
-                if context.details:
-                    trailers.append(("grpc-message", quote(context.details)))
-                trailer_message = protocol.pack_trailers(trailers)
-                body = protocol.wrap_message(True, False, trailer_message)
-                await send(
-                    {"type": "http.response.body", "body": body, "more_body": False}
+                await self._do_streaming_response(
+                    rpc_method, receive, send, context, headers, coroutine
                 )
             else:
-                message = await coroutine
-
-                status = protocol.grpc_status_to_http_status(context.code)
-                headers.append((b"grpc-status", str(context.code.value[0]).encode()))
-                if context.details:
-                    headers.append((b"grpc-message", quote(context.details)))
-
-                body = protocol.wrap_message(
-                    False, False, rpc_method.response_serializer(message)
-                )
-
-                headers.append((b"content-length", str(len(body)).encode()))
-
-                await send(
-                    {
-                        "type": "http.response.start",
-                        "status": status,
-                        "headers": headers,
-                    }
-                )
-                await send(
-                    {"type": "http.response.body", "body": body, "more_body": False}
+                await self._do_unary_response(
+                    rpc_method, receive, send, context, headers, coroutine
                 )
         except grpc.RpcError:
             await self._do_grpc_error(context, send)
+
+    async def _do_streaming_response(
+        self, rpc_method, receive, send, context, headers, coroutine
+    ):
+        message = await anext(coroutine)
+
+        status = protocol.grpc_status_to_http_status(context.code)
+
+        body = protocol.wrap_message(
+            False, False, rpc_method.response_serializer(message)
+        )
+
+        if context._initial_metadata:
+            headers.extend(context._initial_metadata)
+
+        await send(
+            {"type": "http.response.start", "status": status, "headers": headers}
+        )
+
+        await send({"type": "http.response.body", "body": body, "more_body": True})
+
+        async for message in coroutine:
+            body = protocol.wrap_message(
+                False, False, rpc_method.response_serializer(message)
+            )
+
+            send_task = asyncio.create_task(
+                send({"type": "http.response.body", "body": body, "more_body": True})
+            )
+
+            recv_task = asyncio.create_task(receive())
+
+            done, pending = await asyncio.wait(
+                {send_task, recv_task}, return_when=asyncio.FIRST_COMPLETED
+            )
+
+            if recv_task in done:
+                send_task.cancel()
+                result = recv_task.result()
+                if result["type"] == "http.disconnect":
+                    break
+            else:
+                recv_task.cancel()
+
+        trailers = [("grpc-status", str(context.code.value[0]))]
+        if context.details:
+            trailers.append(("grpc-message", quote(context.details)))
+
+        if context._trailing_metadata:
+            trailers.extend(context._trailing_metadata)
+
+        trailer_message = protocol.pack_trailers(trailers)
+        body = protocol.wrap_message(True, False, trailer_message)
+        await send({"type": "http.response.body", "body": body, "more_body": False})
+
+    async def _do_unary_response(
+        self, rpc_method, receive, send, context, headers, coroutine
+    ):
+        message = await coroutine
+
+        status = protocol.grpc_status_to_http_status(context.code)
+        headers.append((b"grpc-status", str(context.code.value[0]).encode()))
+        if context.details:
+            headers.append((b"grpc-message", quote(context.details)))
+
+        if context._initial_metadata:
+            headers.extend(context._initial_metadata)
+
+        if message is not None:
+            message_data = protocol.wrap_message(
+                False, False, rpc_method.response_serializer(message)
+            )
+        else:
+            message_data = b""
+
+        if context._trailing_metadata:
+            trailers = context._trailing_metadata
+            trailer_message = protocol.pack_trailers(trailers)
+            trailer_data = protocol.wrap_message(True, False, trailer_message)
+        else:
+            trailer_data = b""
+
+        content_length = len(message_data) + len(trailer_data)
+
+        headers.append((b"content-length", str(content_length).encode()))
+
+        await send(
+            {"type": "http.response.start", "status": status, "headers": headers}
+        )
+        await send(
+            {"type": "http.response.body", "body": message_data, "more_body": True}
+        )
+        await send(
+            {"type": "http.response.body", "body": trailer_data, "more_body": False}
+        )
 
     async def _do_grpc_error(self, context, send):
         headers = [
@@ -242,6 +271,85 @@ class grpcASGI(grpc.Server):
         raise NotImplementedError()
 
     def stop(self):
+        raise NotImplementedError()
+
+
+class ServicerContext(grpc.ServicerContext):
+    def __init__(self, timeout=None, metadata=None):
+        self.code = grpc.StatusCode.OK
+        self.details = None
+
+        self._timeout = timeout
+
+        if timeout is not None:
+            self._deadline = time.monotonic() + timeout
+        else:
+            self._deadline = None
+
+        self._invocation_metadata = metadata or tuple()
+        self._initial_metadata = None
+        self._trailing_metadata = None
+
+    def set_code(self, code):
+        self.code = code
+
+    def set_details(self, details):
+        self.details = details
+
+    async def abort(self, code, details):
+        if code == grpc.StatusCode.OK:
+            raise ValueError()
+
+        self.set_code(code)
+        self.set_details(details)
+
+        raise grpc.RpcError()
+
+    async def abort_with_status(self, status):
+        if status == grpc.StatusCode.OK:
+            raise ValueError()
+
+        self.set_code(status)
+
+        raise grpc.RpcError()
+
+    async def send_initial_metadata(self, initial_metadata):
+        self._initial_metadata = [
+            (key.encode("ascii"), value.encode("ascii"))
+            for key, value in protocol.encode_headers(initial_metadata)
+        ]
+
+    async def set_trailing_metadata(self, trailing_metadata):
+        self._trailing_metadata = protocol.encode_headers(trailing_metadata)
+
+    def invocation_metadata(self):
+        return self._invocation_metadata
+
+    def time_remaining(self):
+        if self._deadline is not None:
+            return max(self._deadline - time.monotonic(), 0)
+        else:
+            return None
+
+    def peer(self):
+        raise NotImplementedError()
+
+    def peer_identities(self):
+        raise NotImplementedError()
+
+    def peer_identity_key(self):
+        raise NotImplementedError()
+
+    def auth_context(self):
+        raise NotImplementedError()
+
+    def add_callback(self):
+        raise NotImplementedError()
+
+    def cancel(self):
+        raise NotImplementedError()
+
+    def is_active(self):
         raise NotImplementedError()
 
 

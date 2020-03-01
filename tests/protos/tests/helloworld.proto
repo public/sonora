@@ -9,6 +9,10 @@ service Greeter {
   // Sends a greeting
   rpc SayHello (HelloRequest) returns (HelloReply) {}
 
+  rpc HelloMetadata(HelloRequest) returns (HelloReply) {}
+
+  rpc HelloStreamMetadata(HelloRequest) returns (stream HelloReply) {}
+
   // Sends a greeting 1 byte a time
   rpc SayHelloSlowly (HelloRequest) returns (stream HelloReply) {}
 

@@ -1,3 +1,4 @@
+import base64
 import struct
 from urllib.parse import unquote
 
@@ -28,7 +29,7 @@ def wrap_message(trailers, compressed, message):
     )
 
 
-def unrwap_message(message):
+def unwrap_message(message):
     flags, length = struct.unpack(_HEADER_FORMAT, message[:_HEADER_LENGTH])
     data = message[_HEADER_LENGTH : _HEADER_LENGTH + length]
 
@@ -103,18 +104,32 @@ def pack_trailers(trailers):
     message = []
     for k, v in trailers:
         k = k.lower()
-        message.append("{0}: {1}\r\n".format(k, v).encode("utf8"))
+        message.append(f"{k}: {v}\r\n".encode("ascii"))
     return b"".join(message)
 
 
 def unpack_trailers(message):
     trailers = []
-    for line in message.decode("utf8").splitlines():
+    for line in message.decode("ascii").splitlines():
         k, v = line.split(":", 1)
         v = v.strip()
 
         trailers.append((k, v))
     return trailers
+
+
+def encode_headers(metadata):
+    for header, value in metadata:
+        if isinstance(value, bytes):
+            if not header.endswith("-bin"):
+                raise ValueError("binary headers must have the '-bin' suffix")
+
+            value = base64.b64encode(value).decode("ascii")
+
+        if isinstance(header, bytes):
+            header = header.decode("ascii")
+
+        yield header, value
 
 
 def grpc_status_to_http_status(code):
@@ -170,7 +185,7 @@ class WebRpcError(grpc.RpcError):
 
 def raise_for_status(headers, trailers=None):
     if trailers:
-        metadata = dict(unpack_trailers(trailers))
+        metadata = dict(trailers)
     else:
         metadata = headers
 
@@ -202,18 +217,18 @@ def parse_timeout(value):
 
 def serialize_timeout(seconds):
     if seconds % 3600 == 0:
-        value = seconds
+        value = seconds // 3600
         units = "H"
     elif seconds % 60 == 0:
-        value = seconds
+        value = seconds // 60
         units = "M"
     elif seconds % 1 == 0:
         value = seconds
         units = "S"
-    elif seconds >= 1 / 1000.0:
+    elif seconds * 1000 % 1 == 0:
         value = seconds * 1000
         units = "m"
-    elif seconds >= 1 / 1000000.0:
+    elif seconds * 1000000 % 1 == 0:
         value = seconds * 1000000
         units = "u"
     else:
