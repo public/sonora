@@ -1,6 +1,8 @@
 import io
 
+from hypothesis import given, strategies as st
 import pytest
+
 from sonora import protocol
 
 
@@ -56,6 +58,8 @@ async def test_unwrapping_asgi():
     assert resp_messages == messages
 
 
-def test_parse_timeout():
-    seconds = protocol.parse_timeout(b"100n")
-    assert seconds - 0.0000001 < 0.0000001
+@given(st.floats(allow_nan=False, allow_infinity=False))
+def test_timeout_serdes(timeout):
+    ser = protocol.serialize_timeout(timeout).encode("ascii")
+    des = protocol.parse_timeout(ser)
+    assert abs(timeout - des) < 1e-9, (timeout, ser)

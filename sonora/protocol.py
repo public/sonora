@@ -185,7 +185,7 @@ class WebRpcError(grpc.RpcError):
 
 def raise_for_status(headers, trailers=None):
     if trailers:
-        metadata = dict(unpack_trailers(trailers))
+        metadata = dict(trailers)
     else:
         metadata = headers
 
@@ -217,18 +217,18 @@ def parse_timeout(value):
 
 def serialize_timeout(seconds):
     if seconds % 3600 == 0:
-        value = seconds
+        value = seconds // 3600
         units = "H"
     elif seconds % 60 == 0:
-        value = seconds
+        value = seconds // 60
         units = "M"
     elif seconds % 1 == 0:
         value = seconds
         units = "S"
-    elif seconds >= 1 / 1000.0:
+    elif seconds * 1000 % 1 == 0:
         value = seconds * 1000
         units = "m"
-    elif seconds >= 1 / 1000000.0:
+    elif seconds * 1000000 % 1 == 0:
         value = seconds * 1000000
         units = "u"
     else:
