@@ -62,6 +62,26 @@ class SyncGreeter(helloworld_pb2_grpc.GreeterServicer):
 
         return helloworld_pb2.HelloReply(message=repr(value))
 
+    def HelloStreamMetadata(self, request, context):
+        for key, value in context.invocation_metadata():
+            if key == request.name:
+                break
+        else:
+            raise KeyError(request.name)
+
+        context.send_initial_metadata(
+            (f"initial-{key}", repr(value))
+            for key, value in context.invocation_metadata()
+        )
+
+        for c in value:
+            yield helloworld_pb2.HelloReply(message=c)
+
+        context.set_trailing_metadata(
+            (f"trailing-{key}", repr(value))
+            for key, value in context.invocation_metadata()
+        )
+
 
 class AsyncGreeter(helloworld_pb2_grpc.GreeterServicer):
     async def SayHello(self, request, context):
@@ -103,6 +123,26 @@ class AsyncGreeter(helloworld_pb2_grpc.GreeterServicer):
         )
 
         return helloworld_pb2.HelloReply(message=repr(value))
+
+    async def HelloStreamMetadata(self, request, context):
+        for key, value in context.invocation_metadata():
+            if key == request.name:
+                break
+        else:
+            raise KeyError(request.name)
+
+        await context.send_initial_metadata(
+            (f"initial-{key}", repr(value))
+            for key, value in context.invocation_metadata()
+        )
+
+        for c in value:
+            yield helloworld_pb2.HelloReply(message=c)
+
+        await context.set_trailing_metadata(
+            (f"trailing-{key}", repr(value))
+            for key, value in context.invocation_metadata()
+        )
 
 
 class SyncBenchmark(benchmark_pb2_grpc.BenchmarkServiceServicer):

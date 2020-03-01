@@ -73,3 +73,21 @@ def test_helloworld_unary_metadata_binary(wsgi_greeter):
 
     assert dict(initial_metadata)["initial-metadata-key-bin"] == repr(b"\0\1\2\3")
     assert dict(trailing_metadata)["trailing-metadata-key-bin"] == repr(b"\0\1\2\3")
+
+
+def test_helloworld_stream_metadata_ascii(wsgi_greeter):
+    request = helloworld_pb2.HelloRequest(name="metadata-key")
+    result = wsgi_greeter.HelloStreamMetadata(
+        request, metadata=[("metadata-key", "honk")]
+    )
+
+    message = "".join(m.message for m in result)
+
+    assert "honk" == message
+
+    initial_metadata = result.initial_metadata()
+    trailing_metadata = result.trailing_metadata()
+    print("initial_metadata", initial_metadata)
+    print("trailing_metadata", trailing_metadata)
+    assert dict(initial_metadata)["initial-metadata-key"] == repr("honk")
+    assert dict(trailing_metadata)["trailing-metadata-key"] == repr("honk")
