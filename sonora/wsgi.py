@@ -161,7 +161,7 @@ class grpcWSGI(grpc.Server):
             trailer_data = protocol.wrap_message(True, False, trailer_message)
         else:
             trailer_data = b""
-            
+
         content_length = len(message_data) + len(trailer_data)
 
         headers.append(("content-length", str(content_length)))

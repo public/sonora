@@ -204,7 +204,6 @@ class grpcASGI(grpc.Server):
         if context._trailing_metadata:
             trailers = context._trailing_metadata
             trailer_message = protocol.pack_trailers(trailers)
-
             trailer_data = protocol.wrap_message(True, False, trailer_message)
         else:
             trailer_data = b""

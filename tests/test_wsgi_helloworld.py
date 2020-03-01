@@ -49,7 +49,9 @@ def test_helloworld_abort(wsgi_greeter):
 
 def test_helloworld_unary_metadata_ascii(wsgi_greeter):
     request = helloworld_pb2.HelloRequest(name="metadata-key")
-    result, call = wsgi_greeter.HelloMetadata.with_call(request, metadata=[("metadata-key", "honk")])
+    result, call = wsgi_greeter.HelloMetadata.with_call(
+        request, metadata=[("metadata-key", "honk")]
+    )
     assert repr("honk") == result.message
 
     initial_metadata = call.initial_metadata()
