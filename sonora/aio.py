@@ -123,8 +123,6 @@ class UnaryUnaryCall(Call):
     def __await__(self):
         response = yield from self._get_response().__await__()
 
-        protocol.raise_for_status(response.headers)
-
         data = yield from response.read().__await__()
 
         response.release()
@@ -154,6 +152,8 @@ class UnaryUnaryCall(Call):
             else:
                 raise ValueError("UnaryUnary should only return a single message")
 
+        protocol.raise_for_status(response.headers)
+
         return result
 
 
@@ -173,7 +173,7 @@ class UnaryStreamCall(Call):
 
         response.release()
 
-        protocol.raise_for_status(response.headers, message if trailers else None)
+        protocol.raise_for_status(response.headers, self._trailers)
 
         return grpc.experimental.aio.EOF
 
@@ -192,4 +192,4 @@ class UnaryStreamCall(Call):
 
         response.release()
 
-        protocol.raise_for_status(response.headers, message if trailers else None)
+        protocol.raise_for_status(response.headers, self._trailers)
