@@ -149,13 +149,22 @@ class grpcWSGI(grpc.Server):
 
     def _do_unary_response(self, rpc_method, start_response, context, headers, resp):
         if resp:
-            content = protocol.wrap_message(
+            message_data = protocol.wrap_message(
                 False, False, rpc_method.response_serializer(resp)
             )
         else:
-            content = b""
+            message_data = b""
 
-        headers.append(("content-length", str(len(content))))
+        if context._trailing_metadata:
+            trailers = protocol.encode_headers(context._trailing_metadata)
+            trailer_message = protocol.pack_trailers(trailers)
+            trailer_data = protocol.wrap_message(True, False, trailer_message)
+        else:
+            trailer_data = b""
+            
+        content_length = len(message_data) + len(trailer_data)
+
+        headers.append(("content-length", str(content_length)))
 
         headers.append(("grpc-status", str(context.code.value[0])))
 
@@ -166,15 +175,8 @@ class grpcWSGI(grpc.Server):
             headers.extend(protocol.encode_headers(context._initial_metadata))
 
         start_response(_grpc_status_to_wsgi_status(context.code), headers)
-
-        yield content
-
-        if context._trailing_metadata:
-            trailers = protocol.encode_headers(context._trailing_metadata)
-
-            trailer_message = protocol.pack_trailers(trailers)
-
-            yield protocol.wrap_message(True, False, trailer_message)
+        yield message_data
+        yield trailer_data
 
     def _do_cors_preflight(self, environ, start_response):
         start_response(
