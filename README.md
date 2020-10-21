@@ -31,14 +31,12 @@ Sonora is designed to require minimal changes to an existing Python application.
 #### WSGI
 
 Normally a WSGI application ([such as your favourite Django app](https://docs.djangoproject.com/en/2.2/howto/deployment/wsgi/)) will have a file somewhere named `wsgi.py`
-that gets your application setup and ready for your web server of choice.
+that gets your application setup and ready for your web server of choice. It will look something like this.
 
 ```python
 from django.core.wsgi import get_wsgi_application
 application = get_wsgi_application()
 ```
-
-in it somewhere so that your application server (uWSGI, Gunicorn etc) knows where your code is.
 
 To add Sonora's gRPC-Web capabilities to an application like the above all you need to do to enable it is this.
 
@@ -88,7 +86,7 @@ And now you have a combined HTTP/1.1 Quart + gRPC application all under a single
 
 ### Clients
 
-Sonora currently only provides a sync API implementation based on requests.
+Sonora provides both regular sync and aiohttp based async clients.
 
 #### Requests (Sync)
 
