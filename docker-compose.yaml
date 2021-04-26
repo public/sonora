@@ -4,6 +4,7 @@ services:
     build:
         context: .
         target: wsgi
+    image: public/sonora-test-wsgi-server
     volumes:
         - ".:/usr/src/app"
     networks:
@@ -16,6 +17,7 @@ services:
     build:
         context: .
         target: asgi
+    image: public/sonora-test-asgi-server
     volumes:
         - ".:/usr/src/app"
     networks:

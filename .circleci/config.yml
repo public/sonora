@@ -3,12 +3,51 @@ workflows:
   version: 2
   test:
     jobs:
+      - build-sonora-images
+      - build-grpcweb-images
       - test-py37
       - test-py38
-      - black-py37
-      - interop-chrome-wsgi
-      - interop-chrome-asgi
+      - lint
+      - interop-grpcweb-wsgi:
+          requires:
+            - build-sonora-images
+            # - build-grpcweb-images
+      - interop-grpcweb-asgi:
+          requires:
+            - build-sonora-images
+            # - build-grpcweb-images
 jobs:
+  build-sonora-images:
+    docker:
+      - image: cimg/base:stable
+    steps:
+      - setup_remote_docker
+      - checkout
+      - run:
+          name: Build
+          command: |
+            docker-compose build
+            docker login --username=public --password=$DOCKER_HUB_PAT
+            docker tag public/sonora-test-wsgi-server public/sonora-test-wsgi-server:$CIRCLE_SHA1
+            docker push public/sonora-test-wsgi-server:$CIRCLE_SHA1
+            docker tag public/sonora-test-asgi-server public/sonora-test-asgi-server:$CIRCLE_SHA1
+            docker push public/sonora-test-asgi-server:$CIRCLE_SHA1
+  build-grpcweb-images:
+    docker:
+      - image: cimg/base:stable
+    steps:
+      - setup_remote_docker
+      - run:
+          name: Build
+          command: |
+            git clone https://github.com/grpc/grpc-web.git
+            cd grpc-web
+            git reset --hard 1.2.1
+            docker pull public/sonora-grpcweb-interop
+            docker-compose build common prereqs node-interop-server interop-client
+            docker login --username=public --password=$DOCKER_HUB_PAT
+            docker tag grpcweb/prereqs public/sonora-grpcweb-interop:$CIRCLE_SHA1
+            docker push public/sonora-grpcweb-interop:$CIRCLE_SHA1
   test-py37:
     docker:
       - image: circleci/python:3.7
@@ -37,56 +76,38 @@ jobs:
           key: benchmarks-{{ .Environment.CIRCLE_JOB }}-{{ .Branch }}-{{ .Revision }}
           paths:
           - .benchmarks
-  black-py37:
+  test-py39:
     docker:
-      - image: circleci/python:3.7
+      - image: circleci/python:3.9
+    steps:
+      - checkout
+      - run: sudo pip install tox
+      - run: sudo apt-get install python3-dev libev-dev
+      - restore_cache:
+          key: benchmarks-{{ .Environment.CIRCLE_JOB }}-master
+      - run: tox -e py39 -- --benchmark-save=${CIRCLE_BRANCH} --benchmark-compare
+      - save_cache:
+          key: benchmarks-{{ .Environment.CIRCLE_JOB }}-{{ .Branch }}-{{ .Revision }}
+          paths:
+          - .benchmarks
+  interop-grpcweb-wsgi:
+    docker:
+      - image: public/sonora-grpcweb-interop
+      - image: public/sonora-test-wsgi-server:$CIRCLE_SHA1
+    steps:
+      - run:
+          command: /github/grpc-web/scripts/docker-run-interop-tests.sh
+  interop-grpcweb-asgi:
+    docker:
+      - image: public/sonora-grpcweb-interop
+      - image: public/sonora-test-asgi-server:$CIRCLE_SHA1
+    steps:
+      - run:
+          command: /github/grpc-web/scripts/docker-run-interop-tests.sh
+  lint:
+    docker:
+      - image: circleci/python:3.9
     steps:
       - checkout
       - run: sudo pip install tox
       - run: tox -e black
-  interop-chrome-wsgi:
-    docker:
-      - image: public/grpc-web-frontend-tests:latest
-        entrypoint: /bin/bash
-    steps:
-      - checkout
-      - run: sudo pip3 install grpcio-tools
-      - run: sudo pip3 install .
-      - run: |
-          python3 -m grpc.tools.protoc \
-            --proto_path=$(pwd) \
-            --python_out=. \
-            --grpc_python_out=. \
-            $(pwd)/echo/echo.proto
-      - run:
-          background: true
-          command: PYTHONPATH=.:$PYTHONPATH python3 echo/wsgi.py
-      - run:
-          working_directory: /home/node/src
-          command: "./node_modules/.bin/grunt karma:improbable --grpc-host=http://localhost:8080"
-      - run:
-          working_directory: /home/node/src
-          command: "./node_modules/.bin/grunt karma:grpcWeb --grpc-host=http://localhost:8080"
-  interop-chrome-asgi:
-    docker:
-      - image: public/grpc-web-frontend-tests:latest
-        entrypoint: /bin/bash
-    steps:
-      - checkout
-      - run: sudo pip3 install grpcio-tools daphne
-      - run: sudo pip3 install .
-      - run: |
-          python3 -m grpc.tools.protoc \
-            --proto_path="$(pwd)" \
-            --python_out=. \
-            --grpc_python_out=. \
-            "$(pwd)/echo/echo.proto"
-      - run:
-          background: true
-          command: PYTHONPATH=.:$PYTHONPATH python3 echo/asgi.py
-      - run:
-          working_directory: /home/node/src
-          command: "./node_modules/.bin/grunt karma:improbable --grpc-host=http://localhost:8080"
-      - run:
-          working_directory: /home/node/src
-          command: "./node_modules/.bin/grunt karma:grpcWeb --grpc-host=http://localhost:8080"
