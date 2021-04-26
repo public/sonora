@@ -1,4 +1,5 @@
 import base64
+import functools
 import struct
 from urllib.parse import unquote
 
@@ -29,6 +30,10 @@ def wrap_message(trailers, compressed, message):
     )
 
 
+def b64_wrap_message(trailers, compressed, message):
+    return base64.b64encode(wrap_message(trailers, compressed, message))
+
+
 def unwrap_message(message):
     flags, length = struct.unpack(_HEADER_FORMAT, message[:_HEADER_LENGTH])
     data = message[_HEADER_LENGTH : _HEADER_LENGTH + length]
@@ -39,6 +44,10 @@ def unwrap_message(message):
     trailers, compressed = _unpack_header_flags(flags)
 
     return trailers, compressed, data
+
+
+def b64_unwrap_message(message):
+    return unwrap_message(base64.b64decode(message))
 
 
 def unwrap_message_stream(stream):
@@ -71,7 +80,7 @@ async def unwrap_message_stream_async(stream):
         data = await stream.readexactly(_HEADER_LENGTH)
 
 
-async def unwrap_message_asgi(receive):
+async def unwrap_message_asgi(receive, decoder=None):
     buffer = bytearray()
     waiting = False
     flags = None
@@ -81,7 +90,12 @@ async def unwrap_message_asgi(receive):
         event = await receive()
         assert event["type"].startswith("http.")
 
-        buffer += event["body"]
+        if decoder:
+            chunk = decoder(event["body"])
+        else:
+            chunk = event["body"]
+
+        buffer += chunk
 
         if len(buffer) >= _HEADER_LENGTH:
             if not waiting:
@@ -91,6 +105,7 @@ async def unwrap_message_asgi(receive):
                 waiting = False
                 data = buffer[_HEADER_LENGTH : _HEADER_LENGTH + length]
                 trailers, compressed = _unpack_header_flags(flags)
+
                 yield trailers, compressed, data
                 buffer = buffer[_HEADER_LENGTH + length :]
             else:
@@ -98,6 +113,9 @@ async def unwrap_message_asgi(receive):
 
         if not event.get("more_body"):
             break
+
+
+b64_unwrap_message_asgi = functools.partial(unwrap_message_asgi, decoder=base64.b64decode)
 
 
 def pack_trailers(trailers):
@@ -130,28 +148,6 @@ def encode_headers(metadata):
             header = header.decode("ascii")
 
         yield header, value
-
-
-def grpc_status_to_http_status(code):
-    if code == grpc.StatusCode.OK:
-        return 200
-    elif code is None:
-        return 200
-    elif code == grpc.StatusCode.UNKNOWN:
-        return 500
-    elif code == grpc.StatusCode.INTERNAL:
-        return 500
-    elif code == grpc.StatusCode.UNAVAILABLE:
-        return 503
-    elif code == grpc.StatusCode.INVALID_ARGUMENT:
-        return 400
-    elif code == grpc.StatusCode.UNIMPLEMENTED:
-        return 404
-    elif code == grpc.StatusCode.PERMISSION_DENIED:
-        return 403
-    else:
-        return 500
-
 
 class WebRpcError(grpc.RpcError):
     _code_to_enum = {code.value[0]: code for code in grpc.StatusCode}
