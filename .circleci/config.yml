@@ -42,7 +42,7 @@ jobs:
           command: |
             git clone https://github.com/grpc/grpc-web.git
             cd grpc-web
-            git reset --hard 1.2.1
+            git reset --hard 35c16a9e4e113b65966e159dc879bc452c00526c
             docker pull public/sonora-grpcweb-interop
             docker-compose build common prereqs node-interop-server interop-client
             docker login --username=public --password=$DOCKER_HUB_PAT
