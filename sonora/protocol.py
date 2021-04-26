@@ -115,7 +115,9 @@ async def unwrap_message_asgi(receive, decoder=None):
             break
 
 
-b64_unwrap_message_asgi = functools.partial(unwrap_message_asgi, decoder=base64.b64decode)
+b64_unwrap_message_asgi = functools.partial(
+    unwrap_message_asgi, decoder=base64.b64decode
+)
 
 
 def pack_trailers(trailers):
@@ -148,6 +150,7 @@ def encode_headers(metadata):
             header = header.decode("ascii")
 
         yield header, value
+
 
 class WebRpcError(grpc.RpcError):
     _code_to_enum = {code.value[0]: code for code in grpc.StatusCode}
