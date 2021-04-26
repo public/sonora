@@ -191,7 +191,7 @@ class grpcASGI(grpc.Server):
         self, rpc_method, receive, send, wrap_message, context, coroutine
     ):
         headers = context._response_headers
-        
+
         if coroutine is None:
             message = None
         else:
