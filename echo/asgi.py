@@ -1,7 +1,6 @@
 import sys
 import time
 
-from daphne.cli import ASGI3Middleware
 import daphne.server
 
 import grpc
@@ -38,7 +37,7 @@ def main(args):
     echo_pb2_grpc.add_EchoServiceServicer_to_server(Echo(), grpc_asgi_app)
 
     server = daphne.server.Server(
-        ASGI3Middleware(grpc_asgi_app), ["tcp:port=8080:interface=0.0.0.0"]
+        grpc_asgi_app, ["tcp:port=8080:interface=0.0.0.0"]
     )
     server.run()
 
