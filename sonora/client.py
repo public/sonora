@@ -54,7 +54,10 @@ class Multicallable:
         self._path = path
         self._rpc_url = urljoin(url, path)
 
-        self._metadata = [("x-user-agent", "grpc-web-python/0.1")]
+        self._metadata = [
+            ("x-user-agent", "grpc-web-python/0.1"),
+            ("content-type", "application/grpc-web+proto"),
+        ]
 
         self._serializer = request_serializer
         self._deserializer = request_deserializer

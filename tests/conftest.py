@@ -117,7 +117,7 @@ class AsyncGreeter(helloworld_pb2_grpc.GreeterServicer):
             for key, value in context.invocation_metadata()
         )
 
-        await context.set_trailing_metadata(
+        context.set_trailing_metadata(
             (f"trailing-{key}", repr(value))
             for key, value in context.invocation_metadata()
         )
@@ -139,7 +139,7 @@ class AsyncGreeter(helloworld_pb2_grpc.GreeterServicer):
         for c in value:
             yield helloworld_pb2.HelloReply(message=c)
 
-        await context.set_trailing_metadata(
+        context.set_trailing_metadata(
             (f"trailing-{key}", repr(value))
             for key, value in context.invocation_metadata()
         )
