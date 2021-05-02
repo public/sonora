@@ -2,7 +2,7 @@
 
 # Sonora
 
-Sonora is a Python-first implementation of gRPC-Web built on top of standard Python APIs like WSGI and ASGI for easy integration.
+Sonora is a Python-first implementation of gRPC-Web built on top of standard Python APIs like [WSGI](https://wsgi.readthedocs.io/en/latest/what.html) and [ASGI](https://asgi.readthedocs.io/en/latest/) for easy integration.
 
 ## Why?
 
@@ -15,8 +15,10 @@ This makes it easy to
 
 - Add gRPC to an existing code base.
 - Run gRPC behind AWS and other HTTP/1.1 load balancers.
-- Integrate with other ASGI frameworks like Channels, Starlette, Quart etc.
-- Integrate with other WSGI frameworks like Flask, Django etc.
+- Integrate with other ASGI frameworks like [Channels](https://channels.readthedocs.io/en/stable/), [Starlette](https://www.starlette.io/), [Quart](https://pgjones.gitlab.io/quart/) etc.
+- Integrate with other WSGI frameworks like [Flask](https://flask.palletsprojects.com/en/1.1.x/), [Django](https://www.djangoproject.com/) etc.
+
+Sonora aims to be compatible with and tested against Google's [grpc-web](https://github.com/grpc/grpc-web) implementation in both text mode and binary mode.
 
 The name Sonora was inspired by the [Sonoran gopher snake](https://en.wikipedia.org/wiki/Pituophis_catenifer_affinis).
 
