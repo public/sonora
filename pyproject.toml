@@ -1,2 +1,31 @@
+[tool.poetry]
+name = "sonora"
+version = "0.1.0"
+description = "A WSGI and ASGI compatible grpc-web implementation."
+authors = ["Alex Stapleton <alexs@prol.etari.at>"]
+license = "Apache-2.0"
+homepage = "https://github.com/public/sonora"
+
+[tool.poetry.dependencies]
+python = "^3.7"
+grpcio = "^1.37.1"
+urllib3 = "^1.26.4"
+aiohttp = "^3.7.4"
+async-timeout = "^3.0.1"
+
+[tool.poetry.dev-dependencies]
+grpcio-tools = "^1.37.1"
+pytest = "^6.2.3"
+pytest-mockservers = "^0.6.0"
+pytest-asyncio = "^0.15.1"
+pytest-benchmark = "^3.4.1"
+hypothesis = "^6.10.1"
+bjoern = "^3.1.0"
+uvicorn = "^0.13.4"
+aiohttp = {extras = ["speedups"], version = "^3.7.4"}
+tox = "^3.23.0"
+daphne = "^3.0.2"
+
 [build-system]
-requires = ["setuptools", "wheel", "grpcio-tools"]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
