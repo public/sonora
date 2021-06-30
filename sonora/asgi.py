@@ -26,8 +26,8 @@ class grpcASGI(grpc.Server):
         if it matches a configured gRPC service path or fall through
         to the next application.
         """
-
-        assert scope["type"] == "http"
+        if not scope["type"] == "http":
+            return await self._application(scope, receive, send)
 
         rpc_method = self._get_rpc_handler(scope["path"])
         request_method = scope["method"]
