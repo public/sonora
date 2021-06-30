@@ -77,11 +77,11 @@ application = Quart(__name__)
 
 # Install the Sonora grpcASGI middleware so we can handle requests to gRPC's paths.
 
-application = grpcASGI(application)
+application.asgi_app = grpcASGI(application.asgi_app)
 
 # Attach your gRPC server implementation.
 
-helloworld_pb2_grpc.add_GreeterServicer_to_server(Greeter(), application)
+helloworld_pb2_grpc.add_GreeterServicer_to_server(Greeter(), application.asgi_app)
 ```
 
 And now you have a combined HTTP/1.1 Quart + gRPC application all under a single port.
