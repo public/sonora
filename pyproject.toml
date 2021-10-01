@@ -25,6 +25,10 @@ uvicorn = "^0.13.4"
 aiohttp = {extras = ["speedups"], version = "^3.7.4"}
 tox = "^3.23.0"
 daphne = "^3.0.2"
+# Carat versions don't work for mypy.
+mypy = "0.910"
+types-protobuf = "^3.17.4"
+grpc-stubs = "^1.24.7"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
