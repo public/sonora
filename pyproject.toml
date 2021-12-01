@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "sonora"
-version = "0.2.0"
+version = "0.2.1"
 description = "A WSGI and ASGI compatible grpc-web implementation."
 authors = ["Alex Stapleton <alexs@prol.etari.at>"]
 license = "Apache-2.0"
