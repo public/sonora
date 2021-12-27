@@ -153,7 +153,7 @@ def encode_headers(metadata):
 
 
 class WebRpcError(grpc.RpcError):
-    _code_to_enum = {code.value[0]: code for code in grpc.StatusCode}
+    _code_to_enum = {code.value[0]: code for code in grpc.StatusCode}  # type: ignore
 
     def __init__(self, code, details, *args, **kwargs):
         super(WebRpcError, self).__init__(*args, **kwargs)

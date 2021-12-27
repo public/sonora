@@ -33,3 +33,17 @@ black = {version = "^21.12b0", allow-prereleases = true}
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.mypy]
+exclude = ".*_pb2.py$|echotest.py$"
+
+[[tool.mypy.overrides]]
+module = [
+    "grpc.*",
+    "urllib3.*",
+    "uvicorn.*",
+    "daphne.*",
+    "bjoern.*"
+
+]
+ignore_missing_imports = true
