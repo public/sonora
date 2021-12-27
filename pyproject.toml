@@ -28,6 +28,7 @@ daphne = "^3.0.2"
 mypy = "0.910"
 types-protobuf = "^3.17.4"
 grpc-stubs = "^1.24.7"
+black = {version = "^21.12b0", allow-prereleases = true}
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
