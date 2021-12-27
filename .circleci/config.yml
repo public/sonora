@@ -6,8 +6,8 @@ workflows:
       - build-sonora-images
       - build-grpcweb-images
       - test-py37
-      - test-py38
       - test-py39
+      - test-py310
       - lint
       - interop-grpcweb-wsgi:
           requires:
@@ -67,24 +67,6 @@ jobs:
           key: benchmarks-{{ .Environment.CIRCLE_JOB }}-{{ .Branch }}-{{ .Revision }}
           paths:
           - .benchmarks
-  test-py38:
-    docker:
-      - image: circleci/python:3.8
-    steps:
-      - checkout
-      - run: sudo apt-get install python3-dev libev-dev
-      - run:
-          command: curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python -
-          environment:
-            POETRY_VERSION: 1.1.5
-      - run: poetry install
-      - restore_cache:
-          key: benchmarks-{{ .Environment.CIRCLE_JOB }}-master
-      - run: poetry run tox -e py38 -- --benchmark-save=${CIRCLE_BRANCH} --benchmark-compare
-      - save_cache:
-          key: benchmarks-{{ .Environment.CIRCLE_JOB }}-{{ .Branch }}-{{ .Revision }}
-          paths:
-          - .benchmarks
   test-py39:
     docker:
       - image: circleci/python:3.9
@@ -99,6 +81,24 @@ jobs:
       - restore_cache:
           key: benchmarks-{{ .Environment.CIRCLE_JOB }}-master
       - run: poetry run tox -e py39 -- --benchmark-save=${CIRCLE_BRANCH} --benchmark-compare
+      - save_cache:
+          key: benchmarks-{{ .Environment.CIRCLE_JOB }}-{{ .Branch }}-{{ .Revision }}
+          paths:
+          - .benchmarks
+  test-py310:
+    docker:
+      - image: circleci/python:3.10
+    steps:
+      - checkout
+      - run: sudo apt-get install python3-dev libev-dev
+      - run:
+          command: curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python -
+          environment:
+            POETRY_VERSION: 1.1.5
+      - run: poetry install
+      - restore_cache:
+          key: benchmarks-{{ .Environment.CIRCLE_JOB }}-master
+      - run: poetry run tox -e py310 -- --benchmark-save=${CIRCLE_BRANCH} --benchmark-compare
       - save_cache:
           key: benchmarks-{{ .Environment.CIRCLE_JOB }}-{{ .Branch }}-{{ .Revision }}
           paths:
