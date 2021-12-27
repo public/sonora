@@ -138,7 +138,7 @@ class grpcWSGI(grpc.Server):
             pass
 
         if context._initial_metadata:
-            headers.extend(protocol.encode_headers(context._initial_metadata))
+            headers.extend(context._initial_metadata)
 
         start_response("200 OK", headers)
 
@@ -158,7 +158,7 @@ class grpcWSGI(grpc.Server):
             trailers.append(("grpc-message", quote(context.details.encode("utf8"))))
 
         if context._trailing_metadata:
-            trailers.extend(protocol.encode_headers(context._trailing_metadata))
+            trailers.extend(context._trailing_metadata)
 
         trailer_message = protocol.pack_trailers(trailers)
 
@@ -174,28 +174,28 @@ class grpcWSGI(grpc.Server):
         else:
             message_data = b""
 
+        if context._initial_metadata:
+            headers.extend(context._initial_metadata)
+
+        trailers = [("grpc-status", str(context.code.value[0]))]
+
+        if context.details:
+            trailers.append(("grpc-message", quote(context.details.encode("utf8"))))
+
         if context._trailing_metadata:
-            trailers = protocol.encode_headers(context._trailing_metadata)
-            trailer_message = protocol.pack_trailers(trailers)
-            trailer_data = wrap_message(True, False, trailer_message)
-        else:
-            trailer_data = b""
+            trailers.extend(context._trailing_metadata)
+
+        trailer_message = protocol.pack_trailers(trailers)
+        trailer_data = wrap_message(True, False, trailer_message)
 
         content_length = len(message_data) + len(trailer_data)
 
         headers.append(("content-length", str(content_length)))
 
-        headers.append(("grpc-status", str(context.code.value[0])))
-
-        if context.details:
-            headers.append(("grpc-message", quote(context.details.encode("utf8"))))
-
-        if context._initial_metadata:
-            headers.extend(protocol.encode_headers(context._initial_metadata))
-
         start_response("200 OK", headers)
 
         yield message_data
+
         yield trailer_data
 
     def _do_cors_preflight(self, environ, start_response):
@@ -342,10 +342,10 @@ class ServicerContext(grpc.ServicerContext):
         return self._invocation_metadata
 
     def send_initial_metadata(self, initial_metadata):
-        self._initial_metadata = initial_metadata
+        self._initial_metadata = protocol.encode_headers(initial_metadata)
 
     def set_trailing_metadata(self, trailing_metadata):
-        self._trailing_metadata = trailing_metadata
+        self._trailing_metadata = protocol.encode_headers(trailing_metadata)
 
     def peer(self):
         raise NotImplementedError()

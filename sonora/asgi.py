@@ -177,6 +177,7 @@ class grpcASGI(grpc.Server):
                 recv_task.cancel()
 
         trailers = [("grpc-status", str(context.code.value[0]))]
+
         if context.details:
             trailers.append(("grpc-message", quote(context.details)))
 
@@ -199,12 +200,6 @@ class grpcASGI(grpc.Server):
 
         status = 200
 
-        headers.append((b"grpc-status", str(context.code.value[0]).encode()))
-        if context.details:
-            headers.append(
-                (b"grpc-message", quote(context.details.encode("utf8")).encode("ascii"))
-            )
-
         if context._initial_metadata:
             headers.extend(context._initial_metadata)
 
@@ -215,13 +210,18 @@ class grpcASGI(grpc.Server):
         else:
             message_data = b""
 
-        if context._trailing_metadata:
-            trailers = context._trailing_metadata
+        trailers = [(b"grpc-status", str(context.code.value[0]).encode())]
 
-            trailer_message = protocol.pack_trailers(trailers)
-            trailer_data = wrap_message(True, False, trailer_message)
-        else:
-            trailer_data = b""
+        if context.details:
+            trailers.append(
+                (b"grpc-message", quote(context.details.encode("utf8")).encode("ascii"))
+            )
+
+        if context._trailing_metadata:
+            trailers.extend(context._trailing_metadata)
+
+        trailer_message = protocol.pack_trailers(trailers)
+        trailer_data = wrap_message(True, False, trailer_message)
 
         content_length = len(message_data) + len(trailer_data)
 
@@ -230,9 +230,11 @@ class grpcASGI(grpc.Server):
         await send(
             {"type": "http.response.start", "status": status, "headers": headers}
         )
+
         await send(
             {"type": "http.response.body", "body": message_data, "more_body": True}
         )
+
         await send(
             {"type": "http.response.body", "body": trailer_data, "more_body": False}
         )
