@@ -27,7 +27,7 @@ jobs:
       - run:
           name: Build
           command: |
-            docker-compose build
+            docker compose build
             docker login --username=public --password=$DOCKER_HUB_PAT
             docker tag public/sonora-test-wsgi-server public/sonora-test-wsgi-server:$CIRCLE_SHA1
             docker push public/sonora-test-wsgi-server:$CIRCLE_SHA1
@@ -45,7 +45,7 @@ jobs:
             cd grpc-web
             git reset --hard 35c16a9e4e113b65966e159dc879bc452c00526c
             docker pull public/sonora-grpcweb-interop
-            docker-compose build common prereqs node-interop-server interop-client
+            docker compose build common prereqs node-interop-server interop-client
             docker login --username=public --password=$DOCKER_HUB_PAT
             docker tag grpcweb/prereqs public/sonora-grpcweb-interop:$CIRCLE_SHA1
             docker push public/sonora-grpcweb-interop:$CIRCLE_SHA1
