@@ -52,7 +52,7 @@ class Multicallable:
 
         self._url = url
         self._path = path
-        self._rpc_url = urljoin(url, path)
+        self._rpc_url = urljoin(url, path[1:])
 
         self._metadata = [
             ("x-user-agent", "grpc-web-python/0.1"),
