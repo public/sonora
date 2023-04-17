@@ -16,9 +16,10 @@ _HandlerCallDetails = namedtuple(
 
 
 class grpcASGI(grpc.Server):
-    def __init__(self, application=None):
+    def __init__(self, application=None, enable_cors=True):
         self._application = application
         self._handlers = []
+        self._enable_cors = enable_cors
 
     async def __call__(self, scope, receive, send):
         """
@@ -44,7 +45,7 @@ class grpcASGI(grpc.Server):
                     context.details = "request timed out at the server"
                     await self._do_grpc_error(send, context)
 
-            elif request_method == "OPTIONS":
+            elif self._enable_cors and request_method == "OPTIONS":
                 await self._do_cors_preflight(scope, receive, send)
             else:
                 await send({"type": "http.response.start", "status": 400})
@@ -85,7 +86,7 @@ class grpcASGI(grpc.Server):
 
                 metadata.append((header.decode("ascii"), value))
 
-        return ServicerContext(timeout, metadata)
+        return ServicerContext(timeout, metadata, enable_cors=self._enable_cors)
 
     async def _do_grpc_request(self, rpc_method, context, receive, send):
         headers = context._response_headers
@@ -294,7 +295,7 @@ class grpcASGI(grpc.Server):
 
 
 class ServicerContext(grpc.ServicerContext):
-    def __init__(self, timeout=None, metadata=None):
+    def __init__(self, timeout=None, metadata=None, enable_cors=True):
         self.code = grpc.StatusCode.OK
         self.details = None
 
@@ -330,9 +331,13 @@ class ServicerContext(grpc.ServicerContext):
 
         self._response_headers = [
             (b"Content-Type", response_content_type.encode("ascii")),
-            (b"Access-Control-Allow-Origin", origin.encode("ascii")),
-            (b"Access-Control-Expose-Headers", b"*"),
         ]
+
+        if enable_cors:
+            self._response_headers += [
+                (b"Access-Control-Allow-Origin", origin.encode("ascii")),
+                (b"Access-Control-Expose-Headers", b"*"),
+            ]
 
     def set_code(self, code):
         if isinstance(code, grpc.StatusCode):

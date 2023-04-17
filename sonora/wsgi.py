@@ -21,9 +21,10 @@ class grpcWSGI(grpc.Server):
     connections. That means we can't use the normal gRPC I/O loop etc.
     """
 
-    def __init__(self, application=None):
+    def __init__(self, application=None, enable_cors=True):
         self._application = application
         self._handlers = []
+        self._enable_cors = enable_cors
 
     def add_generic_rpc_handlers(self, handlers):
         self._handlers.extend(handlers)
@@ -107,12 +108,13 @@ class grpcWSGI(grpc.Server):
 
         headers = [
             ("Content-Type", response_content_type),
-            (
+        ]
+        if self._enable_cors:
+            headers.append((
                 "Access-Control-Allow-Origin",
                 environ.get("HTTP_HOST") or environ["SERVER_NAME"],
-            ),
-            ("Access-Control-Expose-Headers", "*"),
-        ]
+            ))
+            headers.append(("Access-Control-Expose-Headers", "*"))
 
         if response_content_type == "application/grpc-web-text":
             wrap_message = protocol.b64_wrap_message
@@ -199,11 +201,12 @@ class grpcWSGI(grpc.Server):
         yield trailer_data
 
     def _do_cors_preflight(self, environ, start_response):
-        start_response(
-            "204 No Content",
-            [
-                ("Content-Type", "text/plain"),
-                ("Content-Length", "0"),
+        headers = [
+            ("Content-Type", "text/plain"),
+            ("Content-Length", "0"),
+        ]
+        if self._enable_cors:
+            headers += [
                 ("Access-Control-Allow-Methods", "POST, OPTIONS"),
                 ("Access-Control-Allow-Headers", "*"),
                 (
@@ -212,8 +215,8 @@ class grpcWSGI(grpc.Server):
                 ),
                 ("Access-Control-Allow-Credentials", "true"),
                 ("Access-Control-Expose-Headers", "*"),
-            ],
-        )
+            ]
+        start_response("204 No Content", headers)
         return []
 
     def __call__(self, environ, start_response):
