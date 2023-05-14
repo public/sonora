@@ -105,7 +105,7 @@ class grpcASGI(grpc.Server):
             raise NotImplementedError
 
         request_proto_iterator = (
-            rpc_method.request_deserializer(message)
+            rpc_method.request_deserializer(bytes(message))
             async for _, _, message in unwrap_message(receive)
         )
 
