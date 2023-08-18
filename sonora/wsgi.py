@@ -136,15 +136,16 @@ class grpcWSGI(grpc.Server):
     ):
         try:
             first_message = next(resp)
-        except grpc.RpcError:
-            pass
+        except (grpc.RpcError, StopIteration):
+            first_message = None
 
         if context._initial_metadata:
             headers.extend(context._initial_metadata)
 
         start_response("200 OK", headers)
 
-        yield wrap_message(False, False, rpc_method.response_serializer(first_message))
+        if first_message is not None:
+            yield wrap_message(False, False, rpc_method.response_serializer(first_message))
 
         try:
             for message in resp:
