@@ -62,7 +62,7 @@ jobs:
       - run: poetry install
       - restore_cache:
           key: benchmarks-{{ .Environment.CIRCLE_JOB }}-master
-      - run: poetry run tox -e py37 -- --benchmark-save=${CIRCLE_BRANCH} --benchmark-compare
+      - run: poetry run tox -- -e py37 -- --benchmark-save=${CIRCLE_BRANCH} --benchmark-compare
       - save_cache:
           key: benchmarks-{{ .Environment.CIRCLE_JOB }}-{{ .Branch }}-{{ .Revision }}
           paths:
@@ -80,7 +80,7 @@ jobs:
       - run: poetry install
       - restore_cache:
           key: benchmarks-{{ .Environment.CIRCLE_JOB }}-master
-      - run: poetry run tox -e py39 -- --benchmark-save=${CIRCLE_BRANCH} --benchmark-compare
+      - run: poetry run tox -- -e py39 -- --benchmark-save=${CIRCLE_BRANCH} --benchmark-compare
       - save_cache:
           key: benchmarks-{{ .Environment.CIRCLE_JOB }}-{{ .Branch }}-{{ .Revision }}
           paths:
@@ -98,7 +98,7 @@ jobs:
       - run: poetry install
       - restore_cache:
           key: benchmarks-{{ .Environment.CIRCLE_JOB }}-master
-      - run: poetry run tox -e py310 -- --benchmark-save=${CIRCLE_BRANCH} --benchmark-compare
+      - run: poetry run tox -- -e py310 -- --benchmark-save=${CIRCLE_BRANCH} --benchmark-compare
       - save_cache:
           key: benchmarks-{{ .Environment.CIRCLE_JOB }}-{{ .Branch }}-{{ .Revision }}
           paths:
