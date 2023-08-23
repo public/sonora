@@ -110,10 +110,12 @@ class grpcWSGI(grpc.Server):
             ("Content-Type", response_content_type),
         ]
         if self._enable_cors:
-            headers.append((
-                "Access-Control-Allow-Origin",
-                environ.get("HTTP_HOST") or environ["SERVER_NAME"],
-            ))
+            headers.append(
+                (
+                    "Access-Control-Allow-Origin",
+                    environ.get("HTTP_HOST") or environ["SERVER_NAME"],
+                ),
+            )
             headers.append(("Access-Control-Expose-Headers", "*"))
 
         if response_content_type == "application/grpc-web-text":
@@ -145,7 +147,9 @@ class grpcWSGI(grpc.Server):
         start_response("200 OK", headers)
 
         if first_message is not None:
-            yield wrap_message(False, False, rpc_method.response_serializer(first_message))
+            yield wrap_message(
+                False, False, rpc_method.response_serializer(first_message)
+            )
 
         try:
             for message in resp:
