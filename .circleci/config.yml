@@ -56,7 +56,7 @@ jobs:
       - checkout
       - run: sudo apt-get install python3-dev libev-dev
       - run:
-          command: curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python -
+          command: curl -sSL https://install.python-poetry.org | python -
           environment:
             POETRY_VERSION: 1.1.5
       - run: poetry install
@@ -74,7 +74,7 @@ jobs:
       - checkout
       - run: sudo apt-get install python3-dev libev-dev
       - run:
-          command: curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python -
+          command: curl -sSL https://install.python-poetry.org | python -
           environment:
             POETRY_VERSION: 1.1.5
       - run: poetry install
@@ -92,7 +92,7 @@ jobs:
       - checkout
       - run: sudo apt-get install python3-dev libev-dev
       - run:
-          command: curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python -
+          command: curl -sSL https://install.python-poetry.org | python -
           environment:
             POETRY_VERSION: 1.1.5
       - run: poetry install
