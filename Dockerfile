@@ -5,7 +5,7 @@ WORKDIR /usr/src/app
 RUN apt update && \
     apt install -y build-essential libev-dev
 
-ENV POETRY_VERSION=1.1.5
+ENV POETRY_VERSION=1.5.1
 RUN curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python -
 ENV PATH="${PATH}:/root/.poetry/bin"
 
