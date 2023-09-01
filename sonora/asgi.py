@@ -211,11 +211,11 @@ class grpcASGI(grpc.Server):
         else:
             message_data = b""
 
-        trailers = [(b"grpc-status", str(context.code.value[0]).encode())]
+        trailers = [("grpc-status", str(context.code.value[0]))]
 
         if context.details:
             trailers.append(
-                (b"grpc-message", quote(context.details.encode("utf8")).encode("ascii"))
+                ("grpc-message", quote(context.details))
             )
 
         if context._trailing_metadata:

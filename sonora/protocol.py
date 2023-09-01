@@ -121,11 +121,14 @@ b64_unwrap_message_asgi = functools.partial(
 
 
 def pack_trailers(trailers):
-    message = []
+    data = bytearray()
     for k, v in trailers:
         k = k.lower()
-        message.append(f"{k}: {v}\r\n".encode("ascii"))
-    return b"".join(message)
+        data.extend(k.encode('utf8'))
+        data.extend(b': ')
+        data.extend(v.encode('utf8'))
+        data.extend(b'\r\n')
+    return bytes(data)
 
 
 def unpack_trailers(message):

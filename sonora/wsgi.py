@@ -187,7 +187,7 @@ class grpcWSGI(grpc.Server):
         trailers = [("grpc-status", str(context.code.value[0]))]
 
         if context.details:
-            trailers.append(("grpc-message", quote(context.details.encode("utf8"))))
+            trailers.append(("grpc-message", quote(context.details)))
 
         if context._trailing_metadata:
             trailers.extend(context._trailing_metadata)
